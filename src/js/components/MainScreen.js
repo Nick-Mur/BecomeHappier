@@ -54,20 +54,30 @@ export class MainScreen {
             this.currentQuestionIndex++;
             this.updateUI();
         } else {
-            // Если это последний вопрос, возможно, переходим к экрану статистики или завершаем опрос
-             console.log('Reached end of questions.');
-             // TODO: Добавить логику завершения опроса или перехода к статистике
+            // Если это последний вопрос, показываем соответствующее сообщение
+            console.log('Reached end of questions.');
+            this.questionElement.textContent = 'Это был последний вопрос';
+            this.questionNumberElement.textContent = 'Опрос завершен';
+            this.nextButton.textContent = 'Это был последний вопрос';
+            this.nextButton.disabled = true;
+            this.mainEmojiDisplayElement.src = this.getEmojiImagePath(3); // Показываем нейтральное эмодзи
+            this.emojiButtons.forEach(btn => btn.classList.remove('active'));
         }
     }
     
     handlePrevious() {
         console.log('MainScreen handlePrevious called. Current index:', this.currentQuestionIndex);
         // Переходим к предыдущему вопросу в объединенном списке
-        if (this.currentQuestionIndex > 0) {
+        // Добавляем проверку: если мы находимся в состоянии "Опрос завершен" (кнопка "Следующий" имеет текст "Завершить"),
+        // то при нажатии "Назад" просто обновляем UI, оставаясь на последнем вопросе.
+        if (this.nextButton.textContent === 'Завершить' && this.currentQuestionIndex === this.allQuestions.length - 1) {
+             console.log('Currently at the end screen, going back to the last question.');
+             this.updateUI(); // Просто обновляем UI для текущего (последнего) вопроса
+        } else if (this.currentQuestionIndex > 0) {
             this.currentQuestionIndex--;
             this.updateUI();
         } else {
-             console.log('Reached beginning of questions.');
+            console.log('Reached beginning of questions.');
         }
     }
     
@@ -94,17 +104,16 @@ export class MainScreen {
     
     updateUI() {
         console.log('MainScreen updateUI started. Current index:', this.currentQuestionIndex);
-         if (!this.element || this.allQuestions.length === 0) {
-             console.log('updateUI skipped: element not found or no active questions.');
-             // Возможно, здесь нужно показать сообщение, что нет активных наборов
-             this.questionElement.textContent = 'Нет активных наборов с вопросами.';
-             this.questionNumberElement.textContent = '';
-             this.prevButton.disabled = true;
-             this.nextButton.disabled = true; // Отключаем кнопку "Далее"
-             this.mainEmojiDisplayElement.src = this.getEmojiImagePath(3); // Показываем нейтральное эмодзи
-             this.emojiButtons.forEach(btn => btn.classList.remove('active')); // Снимаем активные классы с эмодзи
-             return;
-         }
+        if (!this.element || this.allQuestions.length === 0) {
+            console.log('updateUI skipped: element not found or no active questions.');
+            this.questionElement.textContent = 'Нет активных наборов с вопросами.';
+            this.questionNumberElement.textContent = '';
+            this.prevButton.disabled = true;
+            this.nextButton.disabled = true;
+            this.mainEmojiDisplayElement.src = this.getEmojiImagePath(3);
+            this.emojiButtons.forEach(btn => btn.classList.remove('active'));
+            return;
+        }
 
         const currentQuestionData = this.allQuestions[this.currentQuestionIndex];
         const totalQuestions = this.allQuestions.length;
@@ -113,46 +122,43 @@ export class MainScreen {
             const currentQuestionText = currentQuestionData.question;
             const currentSetName = currentQuestionData.setName;
 
-            // Получаем сохраненный ответ для текущего вопроса и набора (если есть)
+            // Получаем сохраненный ответ для текущего вопроса и набора
             const savedRating = this.app.dataService.getAnswer(currentSetName, currentQuestionText);
 
             // Обновляем отображение основного эмодзи
             if (savedRating !== null) {
-                 this.mainEmojiDisplayElement.src = this.getEmojiImagePath(savedRating);
-                 // Отмечаем выбранную кнопку эмодзи
-                 this.emojiButtons.forEach(btn => {
-                     if (parseInt(btn.dataset.rating, 10) === savedRating) {
-                         btn.classList.add('active');
-                     } else {
-                         btn.classList.remove('active');
-                     }
-                 });
+                this.mainEmojiDisplayElement.src = this.getEmojiImagePath(savedRating);
+                this.emojiButtons.forEach(btn => {
+                    if (parseInt(btn.dataset.rating, 10) === savedRating) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
             } else {
-                 // Если ответа нет, показываем нейтральное эмодзи и снимаем активный класс со всех кнопок
-                 this.mainEmojiDisplayElement.src = this.getEmojiImagePath(3); // По умолчанию нейтральное
-                 this.emojiButtons.forEach(btn => btn.classList.remove('active'));
+                this.mainEmojiDisplayElement.src = this.getEmojiImagePath(3);
+                this.emojiButtons.forEach(btn => btn.classList.remove('active'));
             }
 
             this.questionElement.textContent = currentQuestionText;
-            this.questionNumberElement.textContent = `Вопрос #${this.currentQuestionIndex + 1} из ${totalQuestions} (${currentSetName})`; // Показываем номер и набор
+            this.questionNumberElement.textContent = `Вопрос #${this.currentQuestionIndex + 1} из ${totalQuestions} (${currentSetName})`;
 
             // Обновляем состояние кнопок навигации
             this.prevButton.disabled = this.currentQuestionIndex === 0;
+            this.nextButton.disabled = false;
             this.nextButton.textContent = this.currentQuestionIndex === totalQuestions - 1 ? 'Завершить' : 'Следующий вопрос';
-             this.nextButton.disabled = false; // Включаем кнопку "Далее" если есть вопросы
 
         } else {
-             console.error('updateUI failed: current question data is undefined at index', this.currentQuestionIndex);
-             // В случае ошибки также показываем сообщение и отключаем навигацию
-             this.questionElement.textContent = 'Произошла ошибка при загрузке вопроса.';
-             this.questionNumberElement.textContent = '';
-             this.prevButton.disabled = true;
-             this.nextButton.disabled = true;
-             this.mainEmojiDisplayElement.src = this.getEmojiImagePath(3);
-             this.emojiButtons.forEach(btn => btn.classList.remove('active'));
+            console.error('updateUI failed: current question data is undefined at index', this.currentQuestionIndex);
+            this.questionElement.textContent = 'Произошла ошибка при загрузке вопроса.';
+            this.questionNumberElement.textContent = '';
+            this.prevButton.disabled = true;
+            this.nextButton.disabled = true;
+            this.mainEmojiDisplayElement.src = this.getEmojiImagePath(3);
+            this.emojiButtons.forEach(btn => btn.classList.remove('active'));
         }
 
-         console.log('MainScreen updateUI finished');
+        console.log('MainScreen updateUI finished');
     }
     
     show() {

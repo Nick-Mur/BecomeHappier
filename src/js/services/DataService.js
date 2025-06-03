@@ -323,4 +323,18 @@ export class DataService {
     }
 
     // TODO: Refactor question navigation (nextQuestion, previousQuestion, etc.) to work with getAllQuestionsFromActiveSets (this will be done in MainScreen)
+
+    // Метод для изменения порядка наборов
+    reorderSets(newOrder) {
+        console.log('Reordering sets:', newOrder);
+        const reorderedSets = {};
+        newOrder.forEach(setName => {
+            if (this.userSets[setName]) {
+                reorderedSets[setName] = this.userSets[setName];
+            }
+        });
+        this.userSets = reorderedSets;
+        this.saveUserSets();
+        console.log('Sets reordered:', this.userSets);
+    }
 } 

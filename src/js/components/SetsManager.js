@@ -23,6 +23,19 @@ export class SetsManager {
         this.saveEditSetBtn = null;
         this.cancelEditSetBtn = null;
         this.addEditQuestionBtn = null;
+
+        // Переменные для отслеживания перетаскивания (общие для десктопа и мобайла)
+        this.draggedElement = null;
+        this.placeholder = null;
+        this.currentContainer = null; // Добавляем для отслеживания контейнера списка
+        this.isDragging = false; // Флаг, чтобы отличать перетаскивание от клика/тапа
+
+        // Переменные для мобильного перетаскивания
+        this.initialTouchY = 0;
+        this.initialTouchX = 0;
+        this.initialElementTop = 0; // Начальная верхняя позиция элемента при таче
+        this.initialElementLeft = 0; // Начальная левая позиция элемента при таче
+        this.DRAG_THRESHOLD_PX = 5; // Порог в пикселях для начала перетаскивания по касанию (уменьшен)
     }
 
     init() {
@@ -53,7 +66,7 @@ export class SetsManager {
             // Модальные окна находятся в document, не внутри setsScreen
             // Их элементы будем получать непосредственно перед использованием
 
-             // Инициализация обработчиков событий для кнопок модальных окон (если еще не добавлены)
+             // Инициализация обработчиков событий модальных окон (если еще не добавлены)
              // Теперь это делается после того, как элемент экрана доступен
              this.initModalEventListeners();
 
@@ -127,6 +140,30 @@ export class SetsManager {
         console.log('SetsManager hide finished');
     }
 
+    // --- Вспомогательная функция для сброса состояния перетаскивания ---
+    resetDragState() {
+        console.log('Resetting drag state.');
+        if (this.draggedElement) {
+            this.draggedElement.classList.remove('dragging', 'touch-dragging');
+            this.draggedElement.style.position = '';
+            this.draggedElement.style.zIndex = '';
+            this.draggedElement.style.width = '';
+            this.draggedElement.style.top = '';
+            this.draggedElement.style.left = '';
+        }
+        if (this.placeholder && this.placeholder.parentNode) {
+            this.placeholder.parentNode.removeChild(this.placeholder);
+        }
+        this.draggedElement = null;
+        this.placeholder = null;
+        this.currentContainer = null;
+        this.isDragging = false;
+        this.initialTouchY = 0;
+        this.initialTouchX = 0;
+        this.initialElementTop = 0;
+        this.initialElementLeft = 0;
+    }
+
     renderSets(mySetsListElement) {
         console.log('renderSets called with mySetsListElement:', mySetsListElement);
         if (!mySetsListElement) {
@@ -140,7 +177,7 @@ export class SetsManager {
 
         const activeSets = this.app.dataService.getActiveSets();
 
-        sets.forEach(setName => {
+        sets.forEach((setName, index) => {
             const questions = this.app.dataService.getQuestionsForSet(setName);
             console.log(`Rendering set: ${setName}`, questions);
             const setElement = document.createElement('div');
@@ -152,9 +189,16 @@ export class SetsManager {
             const hasHiddenQuestions = hiddenQuestions.length > 0;
 
             setElement.className = `set-item p-4 border rounded-lg mb-4 ${isActive ? 'bg-green-100 border-green-500' : ''}`;
+            setElement.draggable = true;
+            setElement.dataset.setName = setName;
+            setElement.dataset.index = index;
+
             setElement.innerHTML = `
                 <div class="flex justify-between items-center">
-                    <h3 class="text-lg font-semibold">${setName}</h3>
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-grip-vertical text-gray-400 cursor-move drag-handle touch-none"></i>
+                        <h3 class="text-lg font-semibold">${setName}</h3>
+                    </div>
                     <div class="flex gap-2">
                         <button class="toggle-active-btn px-2 py-1 rounded ${isActive ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-gray-300 hover:bg-gray-400'}" data-set="${setName}" title="${isActive ? 'Отключить' : 'Включить'}">
                             <i class="fas ${isActive ? 'fa-check-square' : 'fa-square'}"></i>
@@ -212,8 +256,235 @@ export class SetsManager {
                 });
             }
 
+            // --- Обработчики событий для каждого setElement ---
+
+            // Обработчики для десктопной версии (Drag and Drop API)
+            setElement.addEventListener('dragstart', (e) => {
+                console.log('Dragstart:', setName);
+                this.draggedElement = setElement;
+                this.currentContainer = mySetsListElement;
+                this.isDragging = true;
+                e.dataTransfer.setData('text/plain', setName);
+                setElement.classList.add('dragging');
+            });
+
+            setElement.addEventListener('dragend', () => {
+                console.log('Dragend:', setName);
+                this.resetDragState();
+            });
+
+            // Обработчик touchstart для мобильной версии
+            setElement.addEventListener('touchstart', (e) => {
+                const dragHandle = e.target.closest('.drag-handle');
+                if (!dragHandle) return;
+
+                console.log('Touchstart on drag handle:', setName);
+                this.draggedElement = setElement;
+                this.currentContainer = mySetsListElement;
+                this.isDragging = false;
+
+                const touch = e.touches[0];
+                this.initialTouchY = touch.clientY;
+                this.initialTouchX = touch.clientX;
+                this.initialElementTop = setElement.getBoundingClientRect().top;
+                this.initialElementLeft = setElement.getBoundingClientRect().left;
+            });
+
+            setElement.addEventListener('touchmove', (e) => {
+                if (!this.draggedElement || this.currentContainer !== mySetsListElement) return;
+
+                const touch = e.touches[0];
+                const currentY = touch.clientY;
+                const currentX = touch.clientX;
+
+                if (!this.isDragging) {
+                    const deltaY = Math.abs(currentY - this.initialTouchY);
+                    const deltaX = Math.abs(currentX - this.initialTouchX);
+
+                    if (deltaY > this.DRAG_THRESHOLD_PX || deltaX > this.DRAG_THRESHOLD_PX) {
+                        console.log('Starting mobile drag for:', setName);
+                        this.isDragging = true;
+
+                        this.placeholder = document.createElement('div');
+                        this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
+                        this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
+                        this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
+
+                        this.draggedElement.classList.add('dragging', 'touch-dragging');
+                        this.draggedElement.style.position = 'absolute';
+                        this.draggedElement.style.zIndex = 1000;
+                        this.draggedElement.style.width = `${this.draggedElement.offsetWidth}px`;
+                        this.draggedElement.style.top = `${this.initialElementTop}px`;
+                        this.draggedElement.style.left = `${this.initialElementLeft}px`;
+                    }
+                    return;
+                }
+
+                if (this.isDragging) {
+                    const deltaMoveY = currentY - this.initialTouchY;
+                    const deltaMoveX = currentX - this.initialTouchX;
+
+                    this.draggedElement.style.top = `${this.initialElementTop + deltaMoveY}px`;
+                    this.draggedElement.style.left = `${this.initialElementLeft + deltaMoveX}px`;
+
+                    const draggedRect = this.draggedElement.getBoundingClientRect();
+                    const draggedCenterY = draggedRect.top + draggedRect.height / 2;
+
+                    const elements = Array.from(mySetsListElement.children);
+                    let targetElement = null;
+
+                    for (const el of elements) {
+                        if (el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item')) {
+                            const rect = el.getBoundingClientRect();
+                            if (draggedCenterY >= rect.top && draggedCenterY <= rect.bottom) {
+                                targetElement = el;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (targetElement) {
+                        const rect = targetElement.getBoundingClientRect();
+                        const midY = rect.top + rect.height / 2;
+                        if (draggedCenterY < midY) {
+                            if (this.placeholder.previousSibling !== targetElement) {
+                                targetElement.parentNode.insertBefore(this.placeholder, targetElement);
+                            }
+                        } else {
+                            if (this.placeholder.nextSibling !== targetElement) {
+                                targetElement.parentNode.insertBefore(this.placeholder, targetElement.nextSibling);
+                            }
+                        }
+                    }
+                }
+
+                e.preventDefault();
+            });
+
+            setElement.addEventListener('touchend', () => {
+                console.log('Touchend:', setName, 'isDragging:', this.isDragging);
+
+                if (!this.isDragging || !this.draggedElement) {
+                    this.resetDragState();
+                    return;
+                }
+
+                if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
+                    this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
+                }
+
+                const currentElements = Array.from(mySetsListElement.children);
+                const newOrder = currentElements
+                    .filter(el => el.dataset && el.dataset.setName)
+                    .map(el => el.dataset.setName);
+
+                if (newOrder.length > 0) {
+                    this.app.dataService.reorderSets(newOrder);
+                }
+
+                this.resetDragState();
+            });
+
+            setElement.addEventListener('touchcancel', () => {
+                console.log('Touchcancel:', setName);
+                this.resetDragState();
+            });
+
             mySetsListElement.appendChild(setElement);
         });
+
+        // --- Обработчики событий на контейнере списка (для десктопа и отлова drop/dragleave) ---
+
+        // Обработчик drop для десктопа (на контейнере списка)
+        mySetsListElement.addEventListener('drop', (e) => {
+            e.preventDefault(); // Отменяем стандартное поведение браузера
+            console.log('Drop on list container');
+
+            if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
+                this.resetDragState();
+                return;
+            }
+
+            if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
+                this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
+            }
+
+            const currentElements = Array.from(mySetsListElement.children);
+            const newOrder = currentElements
+                .filter(el => el.dataset && el.dataset.setName)
+                .map(el => el.dataset.setName);
+
+            if (newOrder.length > 0) {
+                this.app.dataService.reorderSets(newOrder);
+            }
+
+            this.resetDragState();
+        });
+
+         // Обработчик dragover на контейнере для разрешения drop на нем, даже если нет setElement
+        mySetsListElement.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Необходимо для разрешения drop на контейнере
+            e.dataTransfer.dropEffect = 'move';
+
+            // Убеждаемся, что это активное перетаскивание внутри нужного контейнера
+            if (!this.isDragging || !this.draggedElement || this.currentContainer !== mySetsListElement) {
+                return;
+            }
+
+            // Если плейсхолдер еще не создан (например, при десктопном старте), создаем его
+            if (!this.placeholder) {
+                this.placeholder = document.createElement('div');
+                this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
+                this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
+                // Вставляем плейсхолдер временно, его позиция будет уточнена ниже
+                mySetsListElement.appendChild(this.placeholder);
+            }
+
+            // Ищем место для вставки плейсхолдера
+            const children = Array.from(mySetsListElement.children)
+                .filter(el => el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item'));
+
+            if (children.length === 0) {
+                // Если других элементов нет, убеждаемся, что плейсхолдер в списке
+                 if (!this.placeholder.parentNode || this.placeholder.parentNode !== mySetsListElement) {
+                    mySetsListElement.appendChild(this.placeholder);
+                }
+                return;
+            }
+
+            let inserted = false;
+            for (const child of children) {
+                const rect = child.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (e.clientY < midY) {
+                    // Вставляем перед текущим элементом, если курсор выше его середины
+                    if (this.placeholder.previousSibling !== child) {
+                        mySetsListElement.insertBefore(this.placeholder, child);
+                    }
+                    inserted = true;
+                    break;
+                }
+            }
+
+            // Если плейсхолдер не был вставлен (курсор ниже всех элементов), вставляем в конец
+            if (!inserted && children.length > 0) {
+                // Убеждаемся, что плейсхолдер не уже является последним элементом
+                if (mySetsListElement.lastElementChild !== this.placeholder) {
+                     mySetsListElement.appendChild(this.placeholder);
+                }
+            }
+        });
+
+         // Добавляем обработчик dragleave на контейнер для очистки, если элемент вытащили за пределы списка
+         mySetsListElement.addEventListener('dragleave', (e) => {
+             if (this.isDragging && this.draggedElement && this.currentContainer === mySetsListElement && 
+                 !mySetsListElement.contains(e.relatedTarget) && 
+                 e.relatedTarget !== this.draggedElement && 
+                 e.relatedTarget !== this.placeholder) {
+                 this.resetDragState();
+             }
+         });
+
         console.log('renderSets finished.');
     }
 
@@ -225,14 +496,19 @@ export class SetsManager {
          if (success) {
              const mySetsListElement = this.element.querySelector('#mySetsList');
              if (mySetsListElement) this.renderSets(mySetsListElement);
+             else console.error('mySetsList not found after toggling set activity!');
          }
     }
 
     saveNewSet() {
         console.log('saveNewSet called');
-        if (this.newSetNameInput && this.newSetQuestionsContainer) {
-            const setName = this.newSetNameInput.value.trim();
-            const questionInputs = this.newSetQuestionsContainer.querySelectorAll('.question-input');
+        // Получаем актуальные ссылки на элементы модалки из document
+        const newSetNameInput = document.querySelector('#newSetName');
+        const newSetQuestionsContainer = document.querySelector('#newSetQuestions');
+
+        if (newSetNameInput && newSetQuestionsContainer) {
+            const setName = newSetNameInput.value.trim();
+            const questionInputs = newSetQuestionsContainer.querySelectorAll('.question-input');
             const questions = Array.from(questionInputs)
                 .map(input => input.value.trim())
                 .filter(question => question !== '');
@@ -268,10 +544,14 @@ export class SetsManager {
 
     saveEditSet() {
         console.log('saveEditSet called');
-        if (this.editSetNameInput && this.editSetQuestionsContainer && this.editingSetName) {
+        // Получаем актуальные ссылки на элементы модалки из document
+        const editSetNameInput = document.querySelector('#editSetName');
+        const editSetQuestionsContainer = document.querySelector('#editSetQuestions');
+
+        if (editSetNameInput && editSetQuestionsContainer && this.editingSetName) {
             const oldName = this.editingSetName;
-            const newName = this.editSetNameInput.value.trim();
-            const questionInputs = this.editSetQuestionsContainer.querySelectorAll('.question-input');
+            const newName = editSetNameInput.value.trim();
+            const questionInputs = editSetQuestionsContainer.querySelectorAll('.question-input');
             const questions = Array.from(questionInputs)
                 .map(input => input.value.trim())
                 .filter(question => question !== '');
@@ -320,17 +600,17 @@ export class SetsManager {
     openCreateSetModal() {
         console.log('openCreateSetModal started');
         const createSetModal = document.querySelector('#createSetModal');
-        this.newSetNameInput = document.querySelector('#newSetName');
-        this.newSetQuestionsContainer = document.querySelector('#newSetQuestions');
+        const newSetNameInput = document.querySelector('#newSetName');
+        const newSetQuestionsContainer = document.querySelector('#newSetQuestions');
 
         if (createSetModal) {
             createSetModal.classList.remove('hidden');
             console.log('createSetModal class removed: hidden');
-            
+
             // Очистка полей модального окна при открытии
-            if (this.newSetNameInput) this.newSetNameInput.value = '';
-            if (this.newSetQuestionsContainer) {
-                this.newSetQuestionsContainer.innerHTML = `
+            if (newSetNameInput) newSetNameInput.value = '';
+            if (newSetQuestionsContainer) {
+                newSetQuestionsContainer.innerHTML = `
                     <div class="question-input-container flex gap-2">
                         <input type="text" class="w-full p-3 border rounded-lg question-input" placeholder="Вопрос #1">
                         <button class="delete-question-btn p-3 text-red-500 hover:text-red-700" title="Удалить вопрос">
@@ -344,12 +624,12 @@ export class SetsManager {
                         </button>
                     </div>
                 `;
-                
+
                 // Добавляем обработчики для кнопок удаления
-                this.newSetQuestionsContainer.querySelectorAll('.delete-question-btn').forEach(btn => {
+                newSetQuestionsContainer.querySelectorAll('.delete-question-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
                         btn.closest('.question-input-container').remove();
-                        this.updateQuestionNumbers(this.newSetQuestionsContainer);
+                        this.updateQuestionNumbers(newSetQuestionsContainer);
                     });
                 });
             }
@@ -375,32 +655,32 @@ export class SetsManager {
     openEditSetModal(setName) {
         console.log('openEditSetModal started for set:', setName);
         const editSetModal = document.querySelector('#editSetModal');
-        this.editSetNameInput = document.querySelector('#editSetName');
-        this.editSetQuestionsContainer = document.querySelector('#editSetQuestions');
+        const editSetNameInput = document.querySelector('#editSetName');
+        const editSetQuestionsContainer = document.querySelector('#editSetQuestions');
 
         if (editSetModal) {
             this.editingSetName = setName;
             const questions = this.app.dataService.getQuestionsForSet(setName);
             console.log('Questions for set:', questions);
 
-            if (this.editSetNameInput) this.editSetNameInput.value = setName;
-            if (this.editSetQuestionsContainer) {
-                this.editSetQuestionsContainer.innerHTML = questions
+            if (editSetNameInput) editSetNameInput.value = setName;
+            if (editSetQuestionsContainer) {
+                editSetQuestionsContainer.innerHTML = questions
                     .map((q, i) => `
                         <div class="question-input-container flex gap-2">
-                            <input type="text" class="w-full p-3 border rounded-lg question-input" 
-                                   placeholder="Вопрос #${i + 1}" value="${q}">
+                            <input type="text" class="w-full p-3 border rounded-lg question-input"
+                                   placeholder="Вопрос #${i + 1}" value="${q.replace(/"/g, '&quot;')}">
                             <button class="delete-question-btn p-3 text-red-500 hover:text-red-700" title="Удалить вопрос">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
                     `).join('');
-                
+
                 // Добавляем обработчики для кнопок удаления
-                this.editSetQuestionsContainer.querySelectorAll('.delete-question-btn').forEach(btn => {
+                editSetQuestionsContainer.querySelectorAll('.delete-question-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
                         btn.closest('.question-input-container').remove();
-                        this.updateQuestionNumbers(this.editSetQuestionsContainer);
+                        this.updateQuestionNumbers(editSetQuestionsContainer);
                     });
                 });
             }
@@ -432,34 +712,34 @@ export class SetsManager {
         if (container) {
             const questionInputs = container.querySelectorAll('.question-input');
             const nextQuestionNumber = questionInputs.length + 1;
-            
+
             // Создаем контейнер для вопроса и кнопки удаления
             const questionContainer = document.createElement('div');
             questionContainer.className = 'question-input-container flex gap-2';
-            
+
             // Создаем поле ввода
             const newInput = document.createElement('input');
             newInput.type = 'text';
             newInput.classList.add('w-full', 'p-3', 'border', 'rounded-lg', 'question-input');
             newInput.placeholder = `Вопрос #${nextQuestionNumber}`;
-            
+
             // Создаем кнопку удаления
             const deleteButton = document.createElement('button');
             deleteButton.className = 'delete-question-btn p-3 text-red-500 hover:text-red-700';
             deleteButton.title = 'Удалить вопрос';
             deleteButton.innerHTML = '<i class="fas fa-times"></i>';
-            
+
             // Добавляем обработчик для кнопки удаления
             deleteButton.addEventListener('click', () => {
                 questionContainer.remove();
                 this.updateQuestionNumbers(container);
             });
-            
+
             // Добавляем элементы в контейнер
             questionContainer.appendChild(newInput);
             questionContainer.appendChild(deleteButton);
             container.appendChild(questionContainer);
-            
+
             console.log(`Added input for Question #${nextQuestionNumber}`);
         } else {
             console.error('Question input container is null in addQuestionInput()');
