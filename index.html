@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дневник Настроения</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Основные стили -->
+    <link rel="stylesheet" href="src/css/main.css">
+    <script>
+        // Конфигурация Tailwind
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8B5CF6',
+                        secondary: '#6366F1',
+                        light: '#F3F4F6',
+                        dark: '#1F2937'
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease forwards',
+                        'pulse': 'pulse 2s infinite'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            'from': { opacity: '0' },
+                            'to': { opacity: '1' }
+                        },
+                        pulse: {
+                            '0%, 100%': { transform: 'scale(1)' },
+                            '50%': { transform: 'scale(1.05)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .screen {
+            display: none;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+        }
+        
+        .screen.active {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .card {
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px -10px rgba(0,0,0,0.1);
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px -10px rgba(0,0,0,0.15);
+        }
+        
+        .emoji-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .emoji-btn:hover {
+            transform: scale(1.15);
+        }
+        
+        .emoji-btn.active {
+            transform: scale(1.2);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-lg w-full mx-auto">
+        <!-- Здесь будут загружены компоненты -->
+    </div>
+
+    <!-- Загрузка шаблонов -->
+    <div id="templates" style="display: none;">
+        <!-- Шаблоны будут загружены динамически -->
+    </div>
+
+    <script type="module" src="src/js/app.js"></script>
+</body>
+</html>

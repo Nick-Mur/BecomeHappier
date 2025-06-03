@@ -1,0 +1,78 @@
+<!-- Экран календаря -->
+<div id="calendarScreen" class="screen">
+    <div class="flex justify-between items-center mb-6">
+        <button data-action="showMain" class="p-3 rounded-full bg-white shadow-md hover:bg-gray-50">
+            <i class="fas fa-arrow-left text-primary text-xl"></i>
+        </button>
+        <h1 class="text-2xl font-bold text-center text-dark">Календарь настроения</h1>
+        <div class="w-10"></div> <!-- Для выравнивания -->
+    </div>
+    
+    <div class="card bg-white rounded-2xl p-6 mb-8">
+        <div class="flex justify-between items-center mb-6">
+            <button data-action="prevMonth" class="p-2 rounded-lg bg-light">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <h2 class="text-xl font-bold text-dark">Октябрь 2023</h2>
+            <button data-action="nextMonth" class="p-2 rounded-lg bg-light">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+        
+        <div class="grid grid-cols-7 gap-2 mb-2">
+            <div class="text-center font-medium text-gray-500 py-2">Пн</div>
+            <div class="text-center font-medium text-gray-500 py-2">Вт</div>
+            <div class="text-center font-medium text-gray-500 py-2">Ср</div>
+            <div class="text-center font-medium text-gray-500 py-2">Чт</div>
+            <div class="text-center font-medium text-gray-500 py-2">Пт</div>
+            <div class="text-center font-medium text-gray-500 py-2">Сб</div>
+            <div class="text-center font-medium text-gray-500 py-2">Вс</div>
+        </div>
+        
+        <div id="calendarGrid" class="grid grid-cols-7 gap-2">
+            <!-- Дни календаря будут добавлены динамически -->
+        </div>
+    </div>
+    
+    <div class="card bg-white rounded-2xl p-6">
+        <h3 class="font-semibold text-dark mb-4">Статистика за октябрь</h3>
+        <div class="space-y-3">
+            <div class="flex items-center">
+                <div class="w-24 text-sm text-gray-500">Среднее:</div>
+                <div class="flex-1">
+                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-primary rounded-full" style="width: 75%"></div>
+                    </div>
+                </div>
+                <div class="w-10 text-right text-sm font-medium">3.7</div>
+            </div>
+            <div class="flex items-center">
+                <div class="w-24 text-sm text-gray-500">Позитивные:</div>
+                <div class="flex-1">
+                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-green-500 rounded-full" style="width: 45%"></div>
+                    </div>
+                </div>
+                <div class="w-10 text-right text-sm font-medium">14</div>
+            </div>
+            <div class="flex items-center">
+                <div class="w-24 text-sm text-gray-500">Нейтральные:</div>
+                <div class="flex-1">
+                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-yellow-500 rounded-full" style="width: 30%"></div>
+                    </div>
+                </div>
+                <div class="w-10 text-right text-sm font-medium">9</div>
+            </div>
+            <div class="flex items-center">
+                <div class="w-24 text-sm text-gray-500">Негативные:</div>
+                <div class="flex-1">
+                    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-red-500 rounded-full" style="width: 25%"></div>
+                    </div>
+                </div>
+                <div class="w-10 text-right text-sm font-medium">8</div>
+            </div>
+        </div>
+    </div>
+</div> 
