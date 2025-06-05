@@ -1,65 +1,55 @@
+import { apiService } from '../services/ApiService.js';
+
 export class Charts {
     constructor(app) {
         console.log('Charts constructor started');
         this.app = app;
-        this.element = null; // Изначально элемент равен null
-        this.chart = null;
+        this.element = document.getElementById('chartsScreen');
+        this.charts = {};
         this.init();
         console.log('Charts constructor finished');
     }
 
-    init() {
+    async init() {
         console.log('Charts init started');
-        // initChart и updateStats будут вызываться в show()
+        this.initEventListeners();
+        await this.loadData();
         console.log('Экран графиков инициализирован (без привязки к DOM)');
         console.log('Charts init finished');
     }
 
-    show() {
-        console.log('Charts show started');
-         // Получаем элемент при первом отображении, если он еще не получен
-        if (!this.element) {
-            this.element = document.getElementById('chartsScreen');
-            console.log('Charts element obtained in show():', this.element);
-             this.initChart(); // Инициализируем график после получения элемента
-        }
-
-        if (this.element) {
-            this.element.classList.add('active');
-             this.updateChart(); // Обновляем график при каждом отображении
-             this.updateStats(); // Обновляем статистику при каждом отображении
-            console.log('Charts element class added: active');
-            // Добавьте здесь логику при отображении экрана
-        } else {
-            console.error('Charts element is still null in show() after attempting to get it');
-        }
-        console.log('Charts show finished');
+    initEventListeners() {
+        // Обработчик изменения периода
+        this.element.querySelector('#periodSelect')?.addEventListener('change', async (e) => {
+            await this.loadData(e.target.value);
+        });
     }
 
-    hide() {
-        console.log('Charts hide started');
-        // При скрытии элемент уже должен быть получен
-        if (this.element) {
-            this.element.classList.remove('active');
-            console.log('Charts element class removed: active');
-            // Добавьте здесь логику при скрытии экрана
-        } else {
-            console.error('Charts element is null in hide()');
+    async loadData(period = '7') {
+        try {
+            const moodData = await apiService.getMoodAverage(parseInt(period));
+            this.renderCharts(moodData);
+        } catch (error) {
+            console.error('Error loading chart data:', error);
         }
-        console.log('Charts hide finished');
     }
 
-    initChart() {
-         if (!this.element) return; // Не инициализируем график, если элемент еще не получен
-        console.log('Charts initChart started');
+    renderCharts(data) {
         const ctx = this.element.querySelector('#moodChart').getContext('2d');
-        this.chart = new Chart(ctx, {
+        
+        // Уничтожаем предыдущий график, если он существует
+        if (this.charts.mood) {
+            this.charts.mood.destroy();
+        }
+
+        // Создаем новый график
+        this.charts.mood = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [],
+                labels: data.labels || [],
                 datasets: [{
-                    label: 'Настроение',
-                    data: [],
+                    label: 'Уровень настроения',
+                    data: data.values || [],
                     borderColor: '#8B5CF6',
                     backgroundColor: 'rgba(139, 92, 246, 0.1)',
                     tension: 0.4,
@@ -68,10 +58,13 @@ export class Charts {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: false
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
                     }
                 },
                 scales: {
@@ -85,20 +78,23 @@ export class Charts {
                 }
             }
         });
-        console.log('Charts initChart finished');
     }
 
-    updateChart() {
-         if (!this.chart) return; // Не обновляем график, если он еще не инициализирован
-        console.log('Charts updateChart started');
-        const data = this.app.dataService.getMoodData();
-        const labels = data.map(item => item.date);
-        const values = data.map(item => item.rating);
+    show() {
+        console.log('Charts show started');
+        this.element.classList.add('active');
+        this.loadData(); // Перезагружаем данные при показе
+        console.log('Charts element class added: active');
+        // Добавьте здесь логику при отображении экрана
+        console.log('Charts show finished');
+    }
 
-        this.chart.data.labels = labels;
-        this.chart.data.datasets[0].data = values;
-        this.chart.update();
-        console.log('Charts updateChart finished');
+    hide() {
+        console.log('Charts hide started');
+        this.element.classList.remove('active');
+        console.log('Charts element class removed: active');
+        // Добавьте здесь логику при скрытии экрана
+        console.log('Charts hide finished');
     }
 
     updateStats() {

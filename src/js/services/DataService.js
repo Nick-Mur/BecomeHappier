@@ -11,22 +11,22 @@ export class DataService {
         if (Object.keys(this.userSets).length === 0) {
             console.log('userSets is empty, initializing default sets'); // Лог
             this.userSets = {
-                'Основные': [
-                    "Как вы себя чувствуете сегодня?",
-                    "Как прошёл ваш день?",
-                    "Оцените ваше самочувствие?"
-                ],
-                'Рабочее настроение': [
-                    "Как вы оцениваете свою продуктивность?",
-                    "Насколько комфортно вам было на работе?",
-                    "Как вы оцениваете атмосферу в коллективе?"
-                ],
-                'Самочувствие': [
-                    "Как вы оцениваете своё физическое состояние?",
-                    "Как вы оцениваете свой уровень энергии?",
-                    "Были ли у вас головные боли?"
-                ]
-            };
+            'Основные': [
+                "Как вы себя чувствуете сегодня?",
+                "Как прошёл ваш день?",
+                "Оцените ваше самочувствие?"
+            ],
+            'Рабочее настроение': [
+                "Как вы оцениваете свою продуктивность?",
+                "Насколько комфортно вам было на работе?",
+                "Как вы оцениваете атмосферу в коллективе?"
+            ],
+            'Самочувствие': [
+                "Как вы оцениваете своё физическое состояние?",
+                "Как вы оцениваете свой уровень энергии?",
+                "Были ли у вас головные боли?"
+            ]
+        };
             this.saveUserSets();
             console.log('Default sets initialized and saved:', this.userSets); // Лог
         } else {
@@ -80,13 +80,13 @@ export class DataService {
         // const set = this.getCurrentSet();
         // if (this.currentQuestionIndex < set.length - 1) {
         //     this.currentQuestionIndex++;\n        //     return true;\n        // }\n        // return false;\n         console.warn('nextQuestion needs to be updated for multiple active sets');
-         return false;
+        return false;
     }
     
     // Переход к предыдущему вопросу - ЭТА ЛОГИКА БУДЕТ ИЗМЕНЕНА ПОЗЖЕ ДЛЯ РАБОТЫ С НЕСКОЛЬКИМИ НАБОРАМИ
     previousQuestion() {
         // if (this.currentQuestionIndex > 0) {\n        //     this.currentQuestionIndex--;\n        //     return true;\n        // }\n        // return false;\n         console.warn('previousQuestion needs to be updated for multiple active sets');
-         return false;
+        return false;
     }
     
     // Получение статистики
@@ -258,9 +258,36 @@ export class DataService {
         return Object.keys(this.userSets);
     }
 
-    // Получение наборов для отображения в списке (все, т.к. стандартные тоже в userSets)
+    // Метод для получения списка всех наборов в правильном порядке для отображения
     getSets() {
-        return this.getAllSets(); // Теперь просто возвращаем все ключи из userSets
+        // Получаем имена всех наборов
+        const allSetNames = Object.keys(this.userSets);
+        // Получаем текущий порядок активных наборов
+        const activeSetNames = this.activeSets;
+
+        // Создаем новый массив, где активные наборы идут первыми в своем порядке,
+        // а остальные наборы следуют за ними (например, в алфавитном порядке).
+        const orderedSets = [];
+
+        // Добавляем активные наборы в их текущем порядке
+        activeSetNames.forEach(setName => {
+            if (allSetNames.includes(setName)) {
+                orderedSets.push(setName);
+            }
+        });
+
+        // Добавляем остальные наборы, которые неактивны, например, в алфавитном порядке
+        allSetNames.sort().forEach(setName => {
+            if (!activeSetNames.includes(setName)) {
+                orderedSets.push(setName);
+            }
+        });
+
+        // Удаляем дубликаты, если они появились (хотя по идее не должны)
+        const uniqueOrderedSets = [...new Set(orderedSets)];
+
+        console.log('DataService getSets returning ordered sets:', uniqueOrderedSets);
+        return uniqueOrderedSets; // Возвращаем наборы в правильном порядке
     }
 
     // Получение вопросов для конкретного набора
@@ -270,6 +297,9 @@ export class DataService {
 
     // Метод для получения списка активных наборов
     getActiveSets() {
+        // Этот метод теперь просто возвращает массив activeSets,
+        // порядок которого должен быть обновлен методом reorderSets
+        console.log('DataService getActiveSets returning:', this.activeSets);
         return this.activeSets;
     }
 
@@ -328,13 +358,29 @@ export class DataService {
     reorderSets(newOrder) {
         console.log('Reordering sets:', newOrder);
         const reorderedSets = {};
+        const currentActiveSets = this.getActiveSets(); // Получаем текущий список активных наборов
+        const reorderedActiveSets = []; // Новый массив для активных наборов в правильном порядке
+
         newOrder.forEach(setName => {
             if (this.userSets[setName]) {
+                // Обновляем порядок в userSets (хотя это объект, порядок ключей не гарантируется, но логику сохраним)
                 reorderedSets[setName] = this.userSets[setName];
+
+                // Если набор из newOrder также является активным, добавляем его в новый массив активных
+                if (currentActiveSets.includes(setName)) {
+                    reorderedActiveSets.push(setName);
+                }
             }
         });
-        this.userSets = reorderedSets;
+
+        // Обновляем userSets на основе нового порядка (это больше для структуры данных, чем для порядка)
+        this.userSets = reorderedSets; // Фактически перестраиваем объект по новому порядку ключей
         this.saveUserSets();
-        console.log('Sets reordered:', this.userSets);
+        console.log('User sets reordered:', this.userSets);
+
+        // Обновляем activeSets на основе нового порядка, сохраняя только те, что были активны
+        this.activeSets = reorderedActiveSets;
+        this.saveActiveSets(); // Сохраняем обновленный список активных наборов
+        console.log('Active sets reordered and updated:', this.activeSets);
     }
 } 
