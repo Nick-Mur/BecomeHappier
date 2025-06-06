@@ -1,55 +1,132 @@
-class ApiService {
+export class ApiService {
     constructor() {
-        this.baseUrl = 'http://localhost:8000';
+        this.baseUrl = 'http://localhost:8000/api';
     }
 
-    async createMood(moodData) {
-        const response = await fetch(`${this.baseUrl}/moods/`, {
+    // Получение всех наборов вопросов
+    async getSets() {
+        const response = await fetch(`${this.baseUrl}/sets/`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch sets');
+        }
+        return await response.json();
+    }
+
+    // Создание нового набора вопросов
+    async createSet(set) {
+        const response = await fetch(`${this.baseUrl}/sets/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(moodData),
+            body: JSON.stringify(set)
         });
+        if (!response.ok) {
+            throw new Error('Failed to create set');
+        }
         return await response.json();
     }
 
-    async getMoods() {
-        const response = await fetch(`${this.baseUrl}/moods/`);
-        return await response.json();
-    }
-
-    async createQuestionSet(questionSetData) {
-        const response = await fetch(`${this.baseUrl}/question-sets/`, {
-            method: 'POST',
+    // Обновление набора вопросов
+    async updateSet(setId, set) {
+        const response = await fetch(`${this.baseUrl}/sets/${setId}/`, {
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(questionSetData),
+            body: JSON.stringify(set)
         });
+        if (!response.ok) {
+            throw new Error('Failed to update set');
+        }
         return await response.json();
     }
 
-    async getQuestionSets() {
-        const response = await fetch(`${this.baseUrl}/question-sets/`);
+    // Удаление набора вопросов
+    async deleteSet(setId) {
+        const response = await fetch(`${this.baseUrl}/sets/${setId}/`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) {
+            throw new Error('Failed to delete set');
+        }
         return await response.json();
     }
 
-    async createAnswer(answerData) {
+    // Активация/деактивация набора
+    async toggleSet(setId) {
+        const response = await fetch(`${this.baseUrl}/sets/${setId}/toggle/`, {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            throw new Error('Failed to toggle set');
+        }
+        return await response.json();
+    }
+
+    // Получение всех ответов
+    async getAnswers() {
+        const response = await fetch(`${this.baseUrl}/answers/`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch answers');
+        }
+        return await response.json();
+    }
+
+    // Создание нового ответа
+    async createAnswer(answer) {
         const response = await fetch(`${this.baseUrl}/answers/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(answerData),
+            body: JSON.stringify(answer)
         });
+        if (!response.ok) {
+            throw new Error('Failed to create answer');
+        }
         return await response.json();
     }
 
-    async getMoodAverage(days = 7) {
-        const response = await fetch(`${this.baseUrl}/stats/mood-average?days=${days}`);
+    // Получение статистики
+    async getStatistics() {
+        const response = await fetch(`${this.baseUrl}/statistics/`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch statistics');
+        }
         return await response.json();
     }
-}
 
-export const apiService = new ApiService(); 
+    // Получение данных о настроении
+    async getMoodData() {
+        const response = await fetch(`${this.baseUrl}/mooddata/`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch mood data');
+        }
+        return await response.json();
+    }
+
+    // Получение всех вопросов из активных наборов
+    async getAllQuestionsFromActiveSets() {
+        const response = await fetch(`${this.baseUrl}/questions/active/`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch active questions');
+        }
+        return await response.json();
+    }
+
+    // Изменение порядка наборов
+    async reorderSets(order) {
+        const response = await fetch(`${this.baseUrl}/sets/reorder/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ order })
+        });
+        if (!response.ok) {
+            throw new Error('Failed to reorder sets');
+        }
+        return await response.json();
+    }
+} 

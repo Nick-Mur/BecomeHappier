@@ -1,159 +1,822 @@
 import { ComponentLoader } from '../utils/componentLoader.js';
-import { apiService } from '../services/ApiService.js';
 
 export class SetsManager {
     constructor(app) {
         this.app = app;
-        this.element = document.getElementById('setsScreen');
-        this.questionSets = [];
-        this.init();
+        this.element = null;
+        this.editSetModal = null;
+        this.editingSetName = null;
+        this._eventListenersAdded = false; // Флаг для отслеживания добавления обработчиков
+
+        // Элементы модального окна создания набора
+        this.createSetModal = null;
+        this.createSetBtn = null;
+        this.cancelCreateSetBtn = null;
+        this.saveNewSetBtn = null;
+        this.newSetNameInput = null;
+        this.newSetQuestionsContainer = null;
+        this.addQuestionBtn = null;
+
+        // Элементы модального окна редактирования набора
+        this.editSetNameInput = null;
+        this.editSetQuestionsContainer = null;
+        this.saveEditSetBtn = null;
+        this.cancelEditSetBtn = null;
+        this.addEditQuestionBtn = null;
+
+        // Переменные для отслеживания перетаскивания (общие для десктопа и мобайла)
+        this.draggedElement = null;
+        this.placeholder = null;
+        this.currentContainer = null; // Добавляем для отслеживания контейнера списка
+        this.isDragging = false; // Флаг, чтобы отличать перетаскивание от клика/тапа
+
+        // Переменные для мобильного перетаскивания
+        this.initialTouchY = 0;
+        this.initialTouchX = 0;
+        this.initialElementTop = 0; // Начальная верхняя позиция элемента при таче
+        this.initialElementLeft = 0; // Начальная левая позиция элемента при таче
+        this.DRAG_THRESHOLD_PX = 5; // Порог в пикселях для начала перетаскивания по касанию (уменьшен)
     }
 
-    async init() {
-        await this.loadQuestionSets();
-        this.initEventListeners();
+    init() {
+        // Инициализация не требует доступа к DOM
     }
 
-    async loadQuestionSets() {
-        try {
-            this.questionSets = await apiService.getQuestionSets();
-            this.render();
-        } catch (error) {
-            console.error('Error loading question sets:', error);
+    async show() {
+        console.log('SetsManager show started');
+
+        // Если элемент еще не загружен, загружаем его
+        if (!this.element) {
+             console.log('Loading sets-screen.html...');
+             const setsHtml = await ComponentLoader.loadComponent('src/html/components/sets-screen.html'); // Теперь вызываем статический метод напрямую
+             if (setsHtml) {
+                 document.querySelector('.max-w-lg').insertAdjacentHTML('beforeend', setsHtml);
+            this.element = document.getElementById('setsScreen');
+                 console.log('SetsScreen HTML loaded and inserted.', this.element);
+             } else {
+                 console.error('Failed to load sets-screen.html');
+                 return; // Не можем продолжить без элемента
+            }
         }
-    }
 
-    initEventListeners() {
-        // Обработчик создания нового набора
-        document.getElementById('createSetModal').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.handleCreateSet(e.target);
-        });
+        if (this.element) {
+            console.log('SetsManager element found:', this.element);
 
-        // Обработчик редактирования набора
-        document.getElementById('editSetModal').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.handleEditSet(e.target);
-        });
-    }
+            // Получаем ссылки на элементы модальных окон и списка наборов
+            // Модальные окна находятся в document, не внутри setsScreen
+            // Их элементы будем получать непосредственно перед использованием
 
-    async handleCreateSet(form) {
-        try {
-            const name = form.querySelector('[name="setName"]').value;
-            const questions = Array.from(form.querySelectorAll('.question-input'))
-                .map(input => ({ text: input.value }))
-                .filter(q => q.text.trim() !== '');
+             // Инициализация обработчиков событий модальных окон (если еще не добавлены)
+             // Теперь это делается после того, как элемент экрана доступен
+             this.initModalEventListeners();
 
-            const questionSetData = {
-                name,
-                is_active: true,
-                questions
-            };
+            // Пытаемся получить mySetsListElement. Оборачиваем в setTimeout для надежности после insertAdjacentHTML
+            // Используем 0ms задержку, чтобы дать браузеру время распарсить DOM
+            setTimeout(() => {
+                const mySetsListElement = this.element.querySelector('#mySetsList'); // Ищем mySetsList
+                if (mySetsListElement) {
+                    console.log('My sets list element found after setTimeout.', mySetsListElement);
+                    this.renderSets(mySetsListElement); // Рендерим в mySetsListElement
+                } else {
+                    console.error('My sets list element still not found after setTimeout!', this.element);
+                     // Возможно, здесь стоит добавить логику повторных попыток или сообщение пользователю
+                }
+            }, 0); // Минимальная задержка для парсинга DOM
 
-            await apiService.createQuestionSet(questionSetData);
-            await this.loadQuestionSets();
-            this.closeModal('createSetModal');
-            this.showNotification('Набор успешно создан!');
-        } catch (error) {
-            console.error('Error creating question set:', error);
-            this.showNotification('Ошибка при создании набора', 'error');
+            this.element.classList.add('active');
+            console.log('SetsManager element class added: active');
+
+        } else {
+            // Этот else блок теперь, по идее, не должен выполняться, если загрузка прошла успешно
+            console.error('SetsManager element is null in show() after load attempt');
         }
+        console.log('SetsManager show finished (initial check)');
     }
 
-    async handleEditSet(form) {
-        try {
-            const setId = parseInt(form.dataset.setId);
-            const name = form.querySelector('[name="setName"]').value;
-            const questions = Array.from(form.querySelectorAll('.question-input'))
-                .map(input => ({
-                    id: parseInt(input.dataset.questionId) || null,
-                    text: input.value
-                }))
-                .filter(q => q.text.trim() !== '');
+     // Метод для инициализации обработчиков событий модальных окон (вызывается один раз)
+    initModalEventListeners() {
+         if (this._eventListenersAdded) return;
 
-            const questionSetData = {
-                name,
-                is_active: true,
-                questions
-            };
+         // Элементы создания набора (получаем из document)
+         const createSetBtn = document.querySelector('#createSetBtn');
+         const cancelCreateSetBtn = document.querySelector('#cancelCreateSetBtn');
+         const saveNewSetBtn = document.querySelector('#saveNewSetBtn');
+         // newSetNameInput и newSetQuestionsContainer находятся внутри модалки, получаем при открытии
+         const addQuestionBtn = document.querySelector('#addQuestionBtn');
 
-            await apiService.updateQuestionSet(setId, questionSetData);
-            await this.loadQuestionSets();
-            this.closeModal('editSetModal');
-            this.showNotification('Набор успешно обновлен!');
-        } catch (error) {
-            console.error('Error updating question set:', error);
-            this.showNotification('Ошибка при обновлении набора', 'error');
-        }
-    }
+         // Элементы редактирования набора (получаем из document)
+         // editSetNameInput, editSetQuestionsContainer, saveEditSetBtn, cancelEditSetBtn, addEditQuestionBtn
+         // находятся внутри модалки, получаем при открытии
+         const saveEditSetBtn = document.querySelector('#saveEditSetBtn');
+         const cancelEditSetBtn = document.querySelector('#cancelEditSetBtn');
+         const addEditQuestionBtn = document.querySelector('#addEditQuestionBtn');
 
-    showNotification(message, type = 'success') {
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 p-4 rounded-lg ${
-            type === 'success' ? 'bg-green-500' : 'bg-red-500'
-        } text-white`;
-        notification.textContent = message;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
-    }
+         // Получаем сами модальные окна из document
+         this.createSetModal = document.querySelector('#createSetModal');
+         this.editSetModal = document.querySelector('#editSetModal');
 
-    render() {
-        this.element.innerHTML = `
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold">Управление наборами вопросов</h2>
-                    <button class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark"
-                            onclick="document.getElementById('createSetModal').classList.remove('hidden')">
-                        Создать новый набор
-                    </button>
-                </div>
 
-                <div class="space-y-4">
-                    ${this.questionSets.map(set => `
-                        <div class="border rounded-lg p-4">
-                            <div class="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 class="text-lg font-semibold">${set.name}</h3>
-                                    <p class="text-sm text-gray-600">
-                                        ${set.questions.length} вопросов
-                                    </p>
-                    </div>
-                                <div class="flex space-x-2">
-                                    <button class="text-blue-600 hover:text-blue-800"
-                                            onclick="this.editSet(${set.id})">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                                    <button class="text-red-600 hover:text-red-800"
-                                            onclick="this.deleteSet(${set.id})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                            </div>
-                            <div class="space-y-2">
-                                ${set.questions.map(question => `
-                                    <div class="text-gray-700">${question.text}</div>
-                                `).join('')}
-                            </div>
-                    </div>
-                    `).join('')}
-                </div>
-                    </div>
-                `;
-    }
+         createSetBtn?.addEventListener('click', () => this.openCreateSetModal());
+         cancelCreateSetBtn?.addEventListener('click', () => this.closeCreateSetModal());
+         saveNewSetBtn?.addEventListener('click', () => this.saveNewSet());
+         addQuestionBtn?.addEventListener('click', () => this.addQuestionInput(document.querySelector('#newSetQuestions'))); // Передаем контейнер из document
 
-    show() {
-        this.element.classList.add('active');
+         saveEditSetBtn?.addEventListener('click', () => this.saveEditSet());
+         cancelEditSetBtn?.addEventListener('click', () => this.closeEditSetModal());
+         addEditQuestionBtn?.addEventListener('click', () => this.addQuestionInput(document.querySelector('#editSetQuestions'))); // Передаем контейнер из document
+
+         this._eventListenersAdded = true;
+         console.log('Modal event listeners added.');
     }
 
     hide() {
-        this.element.classList.remove('active');
+        console.log('SetsManager hide started');
+        if (this.element) {
+            this.element.classList.remove('active');
+            console.log('SetsManager element class removed: active');
+        } else {
+            console.error('SetsManager element is null in hide()');
+        }
+        console.log('SetsManager hide finished');
     }
 
-    closeModal(modalId) {
-        document.getElementById(modalId).classList.add('hidden');
+    // --- Вспомогательная функция для сброса состояния перетаскивания ---
+    resetDragState() {
+        console.log('Resetting drag state.');
+        if (this.draggedElement) {
+            this.draggedElement.classList.remove('dragging', 'touch-dragging');
+            this.draggedElement.style.position = '';
+            this.draggedElement.style.zIndex = '';
+            this.draggedElement.style.width = '';
+            this.draggedElement.style.top = '';
+            this.draggedElement.style.left = '';
+        }
+        if (this.placeholder && this.placeholder.parentNode) {
+            this.placeholder.parentNode.removeChild(this.placeholder);
+        }
+        this.draggedElement = null;
+        this.placeholder = null;
+        this.currentContainer = null;
+        this.isDragging = false;
+        this.initialTouchY = 0;
+        this.initialTouchX = 0;
+        this.initialElementTop = 0;
+        this.initialElementLeft = 0;
+    }
+
+    async renderSets(mySetsListElement) {
+        console.log('renderSets called with mySetsListElement:', mySetsListElement);
+        if (!mySetsListElement) {
+            console.error('My sets list element not provided to renderSets!');
+            return;
+        }
+
+        try {
+            // Проверяем инициализацию DataService
+            if (!this.app.dataService.isInitialized) {
+                console.log('Waiting for DataService initialization...');
+                await new Promise(resolve => {
+                    const checkInit = () => {
+                        if (this.app.dataService.isInitialized) {
+                            resolve();
+                        } else {
+                            setTimeout(checkInit, 100);
+                        }
+                    };
+                    checkInit();
+                });
+            }
+
+            const sets = this.app.dataService.getAllSets();
+            console.log('Rendering sets:', sets);
+            mySetsListElement.innerHTML = '';
+
+            const activeSets = this.app.dataService.getActiveSets();
+
+            if (!sets || sets.length === 0) {
+                mySetsListElement.innerHTML = '<div class="text-center text-gray-500">Нет доступных наборов</div>';
+                return;
+            }
+
+            sets.forEach(set => {
+                const setName = set.name;
+                const questions = this.app.dataService.getQuestionsForSet(setName);
+                console.log(`Rendering set: ${setName}`, questions);
+                const setElement = document.createElement('div');
+                const isActive = set.is_active;
+
+                // Разделяем вопросы на видимые и скрытые
+                const visibleQuestions = questions.slice(0, 5);
+                const hiddenQuestions = questions.slice(5);
+                const hasHiddenQuestions = hiddenQuestions.length > 0;
+
+                setElement.className = `set-item p-4 border rounded-lg mb-4 ${isActive ? 'bg-green-100 border-green-500' : ''}`;
+                setElement.draggable = true;
+                setElement.dataset.setName = setName;
+                setElement.dataset.index = sets.indexOf(set);
+
+                setElement.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-grip-vertical text-gray-400 cursor-move drag-handle touch-none"></i>
+                            <h3 class="text-lg font-semibold">${setName}</h3>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="toggle-active-btn px-2 py-1 rounded ${isActive ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-gray-300 hover:bg-gray-400'}" data-set="${setName}" title="${isActive ? 'Отключить' : 'Включить'}">
+                                <i class="fas ${isActive ? 'fa-check-square' : 'fa-square'}"></i>
+                            </button>
+                            <button class="edit-set-btn px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600" data-set="${setName}" title="Редактировать">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="delete-set-btn px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600" data-set="${setName}" title="Удалить">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-600">Количество вопросов: ${questions.length}</p>
+                        <div class="mt-2 text-sm text-gray-500 max-h-[150px] overflow-y-auto">
+                            ${visibleQuestions.map(q => `<div class="py-1">• ${q}</div>`).join('')}
+                            ${hasHiddenQuestions ? `
+                                <div class="py-1 text-blue-500 cursor-pointer show-more-btn" data-set="${setName}">
+                                    Показать еще ${hiddenQuestions.length} вопросов...
+                                </div>
+                                <div class="hidden additional-questions">
+                                    ${hiddenQuestions.map(q => `<div class="py-1">• ${q}</div>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+
+                // Добавляем обработчики событий для кнопок
+                setElement.querySelector('.toggle-active-btn')?.addEventListener('click', () => {
+                    this.toggleSetActivity(setName);
+                });
+
+                setElement.querySelector('.edit-set-btn')?.addEventListener('click', () => {
+                    this.openEditSetModal(setName);
+                });
+
+                setElement.querySelector('.delete-set-btn')?.addEventListener('click', () => {
+                    if (confirm(`Вы уверены, что хотите удалить набор "${setName}"?`)) {
+                        this.deleteSet(setName);
+                    }
+                });
+
+                // Добавляем обработчик для кнопки "Показать еще"
+                const showMoreBtn = setElement.querySelector('.show-more-btn');
+                if (showMoreBtn) {
+                    showMoreBtn.addEventListener('click', () => {
+                        const additionalQuestions = setElement.querySelector('.additional-questions');
+                        if (additionalQuestions) {
+                            additionalQuestions.classList.toggle('hidden');
+                            showMoreBtn.textContent = additionalQuestions.classList.contains('hidden') 
+                                ? `Показать еще ${hiddenQuestions.length} вопросов...`
+                                : 'Скрыть вопросы';
+                        }
+                    });
+                }
+
+                // --- Обработчики событий для каждого setElement ---
+
+                // Обработчики для десктопной версии (Drag and Drop API)
+                setElement.addEventListener('dragstart', (e) => {
+                    console.log('Dragstart:', setName);
+                    this.draggedElement = setElement;
+                    this.currentContainer = mySetsListElement;
+                    this.isDragging = true;
+                    
+                    // Создаем плейсхолдер сразу при начале перетаскивания
+                    this.placeholder = document.createElement('div');
+                    this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
+                    this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
+                    
+                    // Вставляем плейсхолдер на место перетаскиваемого элемента
+                    this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
+                    
+                    e.dataTransfer.setData('text/plain', setName);
+                    setElement.classList.add('dragging');
+                    
+                    // Устанавливаем прозрачность для оригинального элемента
+                    setElement.style.opacity = '0.5';
+                });
+
+                setElement.addEventListener('dragend', () => {
+                    console.log('Dragend:', setName);
+                    if (this.draggedElement) {
+                        this.draggedElement.style.opacity = '';
+                    }
+                    this.resetDragState();
+                });
+
+                // Обработчик touchstart для мобильной версии
+                setElement.addEventListener('touchstart', (e) => {
+                    const dragHandle = e.target.closest('.drag-handle');
+                    if (!dragHandle) return;
+
+                    console.log('Touchstart on drag handle:', setName);
+                    this.draggedElement = setElement;
+                    this.currentContainer = mySetsListElement;
+                    this.isDragging = false;
+
+                    const touch = e.touches[0];
+                    this.initialTouchY = touch.clientY;
+                    this.initialTouchX = touch.clientX;
+                    this.initialElementTop = setElement.getBoundingClientRect().top;
+                    this.initialElementLeft = setElement.getBoundingClientRect().left;
+                });
+
+                setElement.addEventListener('touchmove', (e) => {
+                    if (!this.draggedElement || this.currentContainer !== mySetsListElement) return;
+
+                    const touch = e.touches[0];
+                    const currentY = touch.clientY;
+                    const currentX = touch.clientX;
+
+                    if (!this.isDragging) {
+                        const deltaY = Math.abs(currentY - this.initialTouchY);
+                        const deltaX = Math.abs(currentX - this.initialTouchX);
+
+                        if (deltaY > this.DRAG_THRESHOLD_PX || deltaX > this.DRAG_THRESHOLD_PX) {
+                            console.log('Starting mobile drag for:', setName);
+                            this.isDragging = true;
+
+                            this.placeholder = document.createElement('div');
+                            this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
+                            this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
+                            this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
+
+                            this.draggedElement.classList.add('dragging', 'touch-dragging');
+                            this.draggedElement.style.position = 'absolute';
+                            this.draggedElement.style.zIndex = 1000;
+                            this.draggedElement.style.width = `${this.draggedElement.offsetWidth}px`;
+                            this.draggedElement.style.top = `${this.initialElementTop}px`;
+                            this.draggedElement.style.left = `${this.initialElementLeft}px`;
+                        }
+                        return;
+                    }
+
+                    if (this.isDragging) {
+                        const deltaMoveY = currentY - this.initialTouchY;
+                        const deltaMoveX = currentX - this.initialTouchX;
+
+                        this.draggedElement.style.top = `${this.initialElementTop + deltaMoveY}px`;
+                        this.draggedElement.style.left = `${this.initialElementLeft + deltaMoveX}px`;
+
+                        const draggedRect = this.draggedElement.getBoundingClientRect();
+                        const draggedCenterY = draggedRect.top + draggedRect.height / 2;
+
+                        const elements = Array.from(mySetsListElement.children);
+                        let targetElement = null;
+
+                        for (const el of elements) {
+                            if (el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item')) {
+                                const rect = el.getBoundingClientRect();
+                                if (draggedCenterY >= rect.top && draggedCenterY <= rect.bottom) {
+                                    targetElement = el;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (targetElement) {
+                            const rect = targetElement.getBoundingClientRect();
+                            const midY = rect.top + rect.height / 2;
+                            if (draggedCenterY < midY) {
+                                if (this.placeholder.previousSibling !== targetElement) {
+                                    targetElement.parentNode.insertBefore(this.placeholder, targetElement);
+                                }
+                            } else {
+                                if (this.placeholder.nextSibling !== targetElement) {
+                                    targetElement.parentNode.insertBefore(this.placeholder, targetElement.nextSibling);
+                                }
+                            }
+                        }
+                    }
+
+                    e.preventDefault();
+                });
+
+                setElement.addEventListener('touchend', () => {
+                    console.log('Touchend:', setName, 'isDragging:', this.isDragging);
+
+                    if (!this.isDragging || !this.draggedElement) {
+                        this.resetDragState();
+                        return;
+                    }
+
+                    if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
+                        this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
+                    }
+
+                    const currentElements = Array.from(mySetsListElement.children);
+                    const newOrder = currentElements
+                        .filter(el => el.dataset && el.dataset.setName)
+                        .map(el => el.dataset.setName);
+
+                    if (newOrder.length > 0) {
+                        console.log('SetsManager touchend: Calling reorderSets with newOrder:', newOrder);
+                        this.reorderSets(newOrder);
+                    }
+
+                    this.resetDragState();
+                });
+
+                setElement.addEventListener('touchcancel', () => {
+                    console.log('Touchcancel:', setName);
+                    this.resetDragState();
+                });
+
+                mySetsListElement.appendChild(setElement);
+            });
+
+            // --- Обработчики событий на контейнере списка (для десктопа и отлова drop/dragleave) ---
+
+            // Обработчик drop для десктопа (на контейнере списка)
+            mySetsListElement.addEventListener('drop', (e) => {
+                e.preventDefault(); // Отменяем стандартное поведение браузера
+                console.log('Drop on list container');
+
+                if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
+                    this.resetDragState();
+                    return;
+                }
+
+                if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
+                    this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
+                }
+
+                const currentElements = Array.from(mySetsListElement.children);
+                const newOrder = currentElements
+                    .filter(el => el.dataset && el.dataset.setName)
+                    .map(el => el.dataset.setName);
+
+                if (newOrder.length > 0) {
+                    console.log('SetsManager drop: Calling reorderSets with newOrder:', newOrder);
+                    this.reorderSets(newOrder);
+                }
+
+                this.resetDragState();
+            });
+
+             // Обработчик dragover на контейнере для разрешения drop на нем, даже если нет setElement
+            mySetsListElement.addEventListener('dragover', (e) => {
+                e.preventDefault(); // Необходимо для разрешения drop на контейнере
+                e.dataTransfer.dropEffect = 'move';
+
+                if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
+                    return;
+                }
+
+                const children = Array.from(mySetsListElement.children)
+                    .filter(el => el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item'));
+
+                if (children.length === 0) {
+                    if (!this.placeholder.parentNode || this.placeholder.parentNode !== mySetsListElement) {
+                        mySetsListElement.appendChild(this.placeholder);
+                    }
+                    return;
+                }
+
+                let inserted = false;
+                for (const child of children) {
+                    const rect = child.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    
+                    if (e.clientY < midY) {
+                        if (this.placeholder.previousSibling !== child) {
+                            mySetsListElement.insertBefore(this.placeholder, child);
+                        }
+                        inserted = true;
+                        break;
+                    }
+                }
+
+                if (!inserted && children.length > 0) {
+                    if (mySetsListElement.lastElementChild !== this.placeholder) {
+                        mySetsListElement.appendChild(this.placeholder);
+                    }
+                }
+            });
+
+             // Добавляем обработчик dragleave на контейнер для очистки, если элемент вытащили за пределы списка
+             mySetsListElement.addEventListener('dragleave', (e) => {
+                 if (this.isDragging && this.draggedElement && this.currentContainer === mySetsListElement && 
+                     !mySetsListElement.contains(e.relatedTarget) && 
+                     e.relatedTarget !== this.draggedElement && 
+                     e.relatedTarget !== this.placeholder) {
+                     this.resetDragState();
+                 }
+             });
+
+            console.log('renderSets finished.');
+        } catch (error) {
+            console.error('Error in renderSets:', error);
+        }
+    }
+
+    async toggleSetActivity(setName) {
+        try {
+            console.log('Toggling set activity for:', setName);
+            const success = await this.app.dataService.toggleSetActivity(setName);
+            if (success) {
+                // Обновляем отображение после успешного переключения
+                const mySetsListElement = this.element.querySelector('#mySetsList');
+                if (mySetsListElement) {
+                    await this.renderSets(mySetsListElement);
+                }
+            }
+        } catch (error) {
+            console.error('Error toggling set activity:', error);
+        }
+    }
+
+    async saveNewSet() {
+        console.log('saveNewSet called');
+        // Получаем актуальные ссылки на элементы модалки из document
+        const newSetNameInput = document.querySelector('#newSetName');
+        const newSetQuestionsContainer = document.querySelector('#newSetQuestions');
+
+        if (newSetNameInput && newSetQuestionsContainer) {
+            const setName = newSetNameInput.value.trim();
+            const questionInputs = newSetQuestionsContainer.querySelectorAll('.question-input');
+            const questions = Array.from(questionInputs)
+                .map(input => input.value.trim())
+                .filter(question => question !== '');
+
+            console.log('New set data:', { setName, questions });
+
+            if (!setName) {
+                alert('Пожалуйста, введите название набора.');
+                return;
+            }
+
+            if (questions.length === 0) {
+                alert('Пожалуйста, добавьте хотя бы один вопрос в набор.');
+                return;
+            }
+
+            // Ожидаем завершения создания набора
+            const success = await this.app.dataService.createSet(setName, questions);
+
+            if (success) {
+                this.closeCreateSetModal();
+                const mySetsListElement = this.element.querySelector('#mySetsList');
+                if (mySetsListElement) {
+                    // Ожидаем завершения рендеринга
+                    await this.renderSets(mySetsListElement);
+                    console.log('Sets list updated after creating new set');
+                } else {
+                    console.error('mySetsList not found after saving new set!');
+                }
+            } else {
+                alert('Набор с таким названием уже существует или произошла ошибка при создании.');
+            }
+        } else {
+            console.error('Required elements not found for saving new set');
+        }
+    }
+
+    saveEditSet() {
+        console.log('saveEditSet called');
+        // Получаем актуальные ссылки на элементы модалки из document
+        const editSetNameInput = document.querySelector('#editSetName');
+        const editSetQuestionsContainer = document.querySelector('#editSetQuestions');
+
+        if (editSetNameInput && editSetQuestionsContainer && this.editingSetName) {
+            const oldName = this.editingSetName;
+            const newName = editSetNameInput.value.trim();
+            const questionInputs = editSetQuestionsContainer.querySelectorAll('.question-input');
+            const questions = Array.from(questionInputs)
+                .map(input => input.value.trim())
+                .filter(question => question !== '');
+
+            console.log('Edit set data:', { oldName, newName, questions });
+
+            if (!newName) {
+                alert('Пожалуйста, введите новое название набора.');
+                return;
+            }
+
+            if (questions.length === 0) {
+                alert('Пожалуйста, добавьте хотя бы один вопрос в набор.');
+                return;
+            }
+
+            if (this.app.dataService.editSet(oldName, newName, questions)) {
+                this.closeEditSetModal();
+                const mySetsListElement = this.element.querySelector('#mySetsList');
+                if (mySetsListElement) {
+                    this.renderSets(mySetsListElement);
+                    console.log('Sets list updated after editing set');
+                } else {
+                    console.error('mySetsList not found after saving edit set!');
+                }
+            } else {
+                alert(`Набор с названием "${newName}" уже существует.`);
+            }
+        } else {
+            console.error('Required elements not found for saving edit set');
+        }
+    }
+
+    async deleteSet(setName) {
+        try {
+            console.log('SetsManager: Attempting to delete set:', setName);
+            // DataService сам обновляет свой внутренний список и оповещает о событии
+            const success = await this.app.dataService.deleteSet(setName);
+            if (success) {
+                console.log('SetsManager: Set deleted successfully, re-rendering list.');
+                // Обновляем отображение после успешного удаления
+                const mySetsListElement = this.element.querySelector('#mySetsList');
+                if (mySetsListElement) {
+                    await this.renderSets(mySetsListElement);
+                }
+            } else {
+                 console.error('SetsManager: Failed to delete set:', setName);
+            }
+        } catch (error) {
+            console.error('SetsManager: Error deleting set:', error);
+        }
+    }
+
+    openCreateSetModal() {
+        console.log('openCreateSetModal started');
+        const createSetModal = document.querySelector('#createSetModal');
+        const newSetNameInput = document.querySelector('#newSetName');
+        const newSetQuestionsContainer = document.querySelector('#newSetQuestions');
+
+        if (createSetModal) {
+            createSetModal.classList.remove('hidden');
+            console.log('createSetModal class removed: hidden');
+
+            // Очистка полей модального окна при открытии
+            if (newSetNameInput) newSetNameInput.value = '';
+            if (newSetQuestionsContainer) {
+                newSetQuestionsContainer.innerHTML = `
+                    <div class="question-input-container flex gap-2">
+                <input type="text" class="w-full p-3 border rounded-lg question-input" placeholder="Вопрос #1">
+                        <button class="delete-question-btn p-3 text-red-500 hover:text-red-700" title="Удалить вопрос">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="question-input-container flex gap-2">
+                <input type="text" class="w-full p-3 border rounded-lg question-input" placeholder="Вопрос #2">
+                        <button class="delete-question-btn p-3 text-red-500 hover:text-red-700" title="Удалить вопрос">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+
+                // Добавляем обработчики для кнопок удаления
+                newSetQuestionsContainer.querySelectorAll('.delete-question-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        btn.closest('.question-input-container').remove();
+                        this.updateQuestionNumbers(newSetQuestionsContainer);
+                    });
+                });
+            }
+        } else {
+            console.error('createSetModal element is null in openCreateSetModal()');
+        }
+        console.log('openCreateSetModal finished');
+    }
+
+    closeCreateSetModal() {
+        console.log('closeCreateSetModal started');
+         // Получаем актуальную ссылку на модальное окно перед использованием из document
+        const createSetModal = document.querySelector('#createSetModal');
+        if (createSetModal) {
+            createSetModal.classList.add('hidden');
+            console.log('createSetModal class added: hidden');
+        } else {
+            console.error('createSetModal element is null in closeCreateSetModal()');
+        }
+        console.log('closeCreateSetModal finished');
+    }
+
+    openEditSetModal(setName) {
+        console.log('openEditSetModal started for set:', setName);
+        const editSetModal = document.querySelector('#editSetModal');
+        const editSetNameInput = document.querySelector('#editSetName');
+        const editSetQuestionsContainer = document.querySelector('#editSetQuestions');
+
+        if (editSetModal) {
+            this.editingSetName = setName;
+            const questions = this.app.dataService.getQuestionsForSet(setName);
+            console.log('Questions for set:', questions);
+
+            if (editSetNameInput) editSetNameInput.value = setName;
+            if (editSetQuestionsContainer) {
+                editSetQuestionsContainer.innerHTML = questions
+                    .map((q, i) => `
+                        <div class="question-input-container flex gap-2">
+                            <input type="text" class="w-full p-3 border rounded-lg question-input"
+                                   placeholder="Вопрос #${i + 1}" value="${q.replace(/"/g, '&quot;')}">
+                            <button class="delete-question-btn p-3 text-red-500 hover:text-red-700" title="Удалить вопрос">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    `).join('');
+
+                // Добавляем обработчики для кнопок удаления
+                editSetQuestionsContainer.querySelectorAll('.delete-question-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        btn.closest('.question-input-container').remove();
+                        this.updateQuestionNumbers(editSetQuestionsContainer);
+                    });
+                });
+            }
+
+            editSetModal.classList.remove('hidden');
+            console.log('editSetModal class removed: hidden');
+        } else {
+            console.error('editSetModal element is null in openEditSetModal()');
+        }
+        console.log('openEditSetModal finished');
+    }
+
+    closeEditSetModal() {
+        console.log('closeEditSetModal started');
+         // Получаем актуальную ссылку на модальное окно перед использованием из document
+        const editSetModal = document.querySelector('#editSetModal');
+        if (editSetModal) {
+            editSetModal.classList.add('hidden');
+            console.log('editSetModal class added: hidden');
+            this.editingSetName = null;
+        } else {
+             console.error('editSetModal element is null in closeEditSetModal()');
+        }
+        console.log('closeEditSetModal finished');
+    }
+
+    addQuestionInput(container) {
+        console.log('addQuestionInput called', container);
+        if (container) {
+            const questionInputs = container.querySelectorAll('.question-input');
+            const nextQuestionNumber = questionInputs.length + 1;
+
+            // Создаем контейнер для вопроса и кнопки удаления
+            const questionContainer = document.createElement('div');
+            questionContainer.className = 'question-input-container flex gap-2';
+
+            // Создаем поле ввода
+            const newInput = document.createElement('input');
+            newInput.type = 'text';
+            newInput.classList.add('w-full', 'p-3', 'border', 'rounded-lg', 'question-input');
+            newInput.placeholder = `Вопрос #${nextQuestionNumber}`;
+
+            // Создаем кнопку удаления
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'delete-question-btn p-3 text-red-500 hover:text-red-700';
+            deleteButton.title = 'Удалить вопрос';
+            deleteButton.innerHTML = '<i class="fas fa-times"></i>';
+
+            // Добавляем обработчик для кнопки удаления
+            deleteButton.addEventListener('click', () => {
+                questionContainer.remove();
+                this.updateQuestionNumbers(container);
+            });
+
+            // Добавляем элементы в контейнер
+            questionContainer.appendChild(newInput);
+            questionContainer.appendChild(deleteButton);
+            container.appendChild(questionContainer);
+
+            console.log(`Added input for Question #${nextQuestionNumber}`);
+        } else {
+            console.error('Question input container is null in addQuestionInput()');
+        }
+    }
+
+    // Метод для обновления номеров вопросов
+    updateQuestionNumbers(container) {
+        const questionInputs = container.querySelectorAll('.question-input');
+        questionInputs.forEach((input, index) => {
+            input.placeholder = `Вопрос #${index + 1}`;
+        });
+    }
+
+    async reorderSets(newOrder) {
+        try {
+            console.log('SetsManager: Calling reorderSets with order:', newOrder);
+            const success = await this.app.dataService.reorderSets(newOrder);
+            if (!success) {
+                console.error('Failed to reorder sets');
+                // Восстанавливаем исходный порядок
+                const mySetsListElement = this.element.querySelector('#mySetsList');
+                if (mySetsListElement) {
+                    await this.renderSets(mySetsListElement);
+                }
+            }
+        } catch (error) {
+            console.error('Error reordering sets:', error);
+            // Восстанавливаем исходный порядок при ошибке
+            const mySetsListElement = this.element.querySelector('#mySetsList');
+            if (mySetsListElement) {
+                await this.renderSets(mySetsListElement);
+            }
+        }
     }
 } 
