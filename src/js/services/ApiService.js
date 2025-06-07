@@ -121,6 +121,7 @@ export class ApiService {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': this.getCsrfToken()
             },
             body: JSON.stringify({ order })
         });
@@ -128,5 +129,23 @@ export class ApiService {
             throw new Error('Failed to reorder sets');
         }
         return await response.json();
+    }
+
+    // Метод для получения CSRF-токена из cookie
+    getCsrfToken() {
+        let csrfToken = null;
+        const name = 'csrftoken';
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                let cookie = cookies[i].trim();
+                // Does this cookie string begin with the name we want?
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    csrfToken = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return csrfToken;
     }
 } 

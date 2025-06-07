@@ -21,17 +21,29 @@ class QuestionSetViewSet(viewsets.ModelViewSet):
         set_obj.save()
         return Response(self.get_serializer(set_obj).data)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
         order = request.data.get('order', [])
-        for idx, set_id in enumerate(order):
-            try:
-                qs = QuestionSet.objects.get(id=set_id)
-                qs.order = idx
-                qs.save()
-            except QuestionSet.DoesNotExist:
-                continue
-        return Response({'status': 'ok'})
+        if not order:
+            return Response({'error': 'Order list is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Получаем все наборы по имени для быстрого доступа
+        sets_by_name = {s.name: s for s in QuestionSet.objects.all()}
+
+        # Обновляем порядок наборов
+        for index, set_name in enumerate(order):
+            set_obj = sets_by_name.get(set_name)
+            if set_obj:
+                set_obj.order = index
+                set_obj.save()
+            else:
+                # Если набор с таким именем не найден, возвращаем ошибку
+                return Response({'error': f'Set with name "{set_name}" not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Возвращаем обновленный список наборов, отсортированный по новому порядку
+        updated_sets = QuestionSet.objects.all().order_by('order', 'id')
+        serializer = self.get_serializer(updated_sets, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class AnswerViewSet(viewsets.ModelViewSet):
     queryset = Answer.objects.all().order_by('-date')
@@ -75,3 +87,35 @@ class ActiveQuestionsView(APIView):
             for q in questions
         ]
         return Response(data)
+
+@api_view(['POST'])
+def reorder_sets(request):
+    try:
+        order = request.data.get('order', [])
+        if not order:
+            return Response({'error': 'Order list is required'}, status=400)
+            
+        # Получаем все наборы
+        sets = QuestionSet.objects.all()
+        
+        # Создаем словарь для быстрого доступа к наборам по имени
+        sets_dict = {set.name: set for set in sets}
+        
+        # Проверяем, что все наборы из order существуют
+        for set_name in order:
+            if set_name not in sets_dict:
+                return Response({'error': f'Set {set_name} not found'}, status=404)
+        
+        # Обновляем порядок наборов
+        for index, set_name in enumerate(order):
+            set_obj = sets_dict[set_name]
+            set_obj.order = index
+            set_obj.save()
+        
+        # Возвращаем обновленный список наборов
+        updated_sets = QuestionSet.objects.all().order_by('order')
+        serializer = QuestionSetSerializer(updated_sets, many=True)
+        return Response(serializer.data)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)

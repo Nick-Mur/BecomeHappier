@@ -65,10 +65,10 @@ export class DataService {
                 rating: rating
             });
             
-            if (!this.answers[setName]) {
-                this.answers[setName] = {};
-            }
-            this.answers[setName][question] = rating;
+        if (!this.answers[setName]) {
+            this.answers[setName] = {};
+        }
+        this.answers[setName][question] = rating;
             
             this.notifyApp('answerSaved', { setName, question, rating });
             return true;
@@ -93,12 +93,12 @@ export class DataService {
         } catch (error) {
             console.error('Error getting statistics:', error);
             this.notifyApp('error', error);
-            return {
+        return {
                 average: 0,
                 positive: 0,
                 neutral: 0,
                 negative: 0
-            };
+        };
         }
     }
     
@@ -114,7 +114,7 @@ export class DataService {
             return [];
         }
     }
-    
+
     // Создание нового набора
     async createSet(setName, questions) {
         try {
@@ -138,7 +138,7 @@ export class DataService {
             return false;
         }
     }
-    
+
     // Редактирование набора
     async editSet(oldName, newName, questions) {
         try {
@@ -160,14 +160,14 @@ export class DataService {
                 this.sets[index] = updatedSet;
                 
                 if (oldName !== newName) {
-                    if (this.answers[oldName]) {
-                        this.answers[newName] = this.answers[oldName];
-                        delete this.answers[oldName];
-                    }
-                }
+            if (this.answers[oldName]) {
+                this.answers[newName] = this.answers[oldName];
+                delete this.answers[oldName];
+            }
+        }
                 
                 this.notifyApp('setUpdated', updatedSet);
-                return true;
+        return true;
             }
             
             return false;
@@ -177,7 +177,7 @@ export class DataService {
             return false;
         }
     }
-    
+
     // Удаление набора
     async deleteSet(setName) {
         try {
@@ -200,7 +200,7 @@ export class DataService {
             return false;
         }
     }
-    
+
     // Получение всех наборов
     getAllSets() {
         return this.sets.map(set => ({
@@ -210,20 +210,20 @@ export class DataService {
             order: set.order
         }));
     }
-    
+
     // Получение вопросов для набора
     getQuestionsForSet(setName) {
         const set = this.sets.find(s => s.name === setName);
         return set ? set.questions.map(q => q.text) : [];
     }
-    
+
     // Получение активных наборов
     getActiveSets() {
         return this.sets
             .filter(set => set.is_active)
             .map(set => set.name);
     }
-    
+
     // Переключение активности набора
     async toggleSetActivity(setName) {
         try {
@@ -233,20 +233,20 @@ export class DataService {
             const updatedSet = await this.apiService.toggleSet(set.id);
             
             const index = this.sets.findIndex(s => s.id === set.id);
-            if (index !== -1) {
+        if (index !== -1) {
                 this.sets[index] = updatedSet;
                 this.notifyApp('setToggled', updatedSet);
-                return true;
+                 return true;
             }
             
             return false;
         } catch (error) {
             console.error('Error toggling set:', error);
             this.notifyApp('error', error);
-            return false;
+                 return false;
         }
     }
-    
+
     // Получение всех вопросов из активных наборов
     async getAllQuestionsFromActiveSets() {
         try {
@@ -263,14 +263,23 @@ export class DataService {
     // Изменение порядка наборов
     async reorderSets(newOrder) {
         try {
+            console.log('DataService: reorderSets called with order:', newOrder);
             const updatedSets = await this.apiService.reorderSets(newOrder);
+
             this.sets = updatedSets;
+            this.cache.set('sets', updatedSets);
+            
+            // Обновляем порядок в кэше
+            this.sets = this.sets.sort((a, b) => {
+                return newOrder.indexOf(a.name) - newOrder.indexOf(b.name);
+            });
+            
             this.notifyApp('setsReordered', updatedSets);
-            return true;
+            return updatedSets;
         } catch (error) {
             console.error('Error reordering sets:', error);
             this.notifyApp('error', error);
-            return false;
+            throw error;
         }
     }
 } 

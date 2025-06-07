@@ -164,39 +164,245 @@ export class SetsManager {
         this.initialElementLeft = 0;
     }
 
-    async renderSets(mySetsListElement) {
-        console.log('renderSets called with mySetsListElement:', mySetsListElement);
-        if (!mySetsListElement) {
-            console.error('My sets list element not provided to renderSets!');
-            return;
-        }
+    // Метод для инициализации обработчиков событий перетаскивания
+    initDragAndDropHandlers(setElement, setName, mySetsListElement) {
+        // Обработчики для десктопной версии (Drag and Drop API)
+        setElement.addEventListener('dragstart', (e) => {
+            console.log('Dragstart:', setName);
+            this.draggedElement = setElement;
+            this.currentContainer = mySetsListElement;
+            this.isDragging = true;
+            
+            // Создаем плейсхолдер сразу при начале перетаскивания
+            this.placeholder = document.createElement('div');
+            this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
+            this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
+            
+            // Вставляем плейсхолдер на место перетаскиваемого элемента
+            this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
+            
+            e.dataTransfer.setData('text/plain', setName);
+            setElement.classList.add('dragging');
+            
+            // Устанавливаем прозрачность для оригинального элемента
+            setElement.style.opacity = '0.5';
+        });
 
-        try {
-            // Проверяем инициализацию DataService
-            if (!this.app.dataService.isInitialized) {
-                console.log('Waiting for DataService initialization...');
-                await new Promise(resolve => {
-                    const checkInit = () => {
-                        if (this.app.dataService.isInitialized) {
-                            resolve();
-                        } else {
-                            setTimeout(checkInit, 100);
-                        }
-                    };
-                    checkInit();
-                });
+        setElement.addEventListener('dragend', () => {
+            console.log('Dragend:', setName);
+            if (this.draggedElement) {
+                this.draggedElement.style.opacity = '';
             }
+            this.resetDragState();
+        });
 
-            const sets = this.app.dataService.getAllSets();
-            console.log('Rendering sets:', sets);
-            mySetsListElement.innerHTML = '';
+        // Обработчики для мобильной версии
+        setElement.addEventListener('touchstart', (e) => {
+            const dragHandle = e.target.closest('.drag-handle');
+            if (!dragHandle) return;
 
-            const activeSets = this.app.dataService.getActiveSets();
+            console.log('Touchstart on drag handle:', setName);
+            this.draggedElement = setElement;
+            this.currentContainer = mySetsListElement;
+            this.isDragging = false;
 
-            if (!sets || sets.length === 0) {
-                mySetsListElement.innerHTML = '<div class="text-center text-gray-500">Нет доступных наборов</div>';
+            const touch = e.touches[0];
+            this.initialTouchY = touch.clientY;
+            this.initialTouchX = touch.clientX;
+            this.initialElementTop = setElement.getBoundingClientRect().top;
+            this.initialElementLeft = setElement.getBoundingClientRect().left;
+        });
+
+        setElement.addEventListener('touchmove', (e) => {
+            if (!this.draggedElement || this.currentContainer !== mySetsListElement) return;
+
+            const touch = e.touches[0];
+            const currentY = touch.clientY;
+            const currentX = touch.clientX;
+
+            if (!this.isDragging) {
+                const deltaY = Math.abs(currentY - this.initialTouchY);
+                const deltaX = Math.abs(currentX - this.initialTouchX);
+
+                if (deltaY > this.DRAG_THRESHOLD_PX || deltaX > this.DRAG_THRESHOLD_PX) {
+                    console.log('Starting mobile drag for:', setName);
+                    this.isDragging = true;
+
+                    this.placeholder = document.createElement('div');
+                    this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
+                    this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
+                    this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
+
+                    this.draggedElement.classList.add('dragging', 'touch-dragging');
+                    this.draggedElement.style.position = 'fixed';
+                    this.draggedElement.style.zIndex = 1000;
+                    this.draggedElement.style.width = `${this.draggedElement.offsetWidth}px`;
+                    this.draggedElement.style.top = `${this.initialElementTop}px`;
+                    this.draggedElement.style.left = `${this.initialElementLeft}px`;
+                }
                 return;
             }
+
+            if (this.isDragging) {
+                const deltaMoveY = currentY - this.initialTouchY;
+                const deltaMoveX = currentX - this.initialTouchX;
+
+                this.draggedElement.style.top = `${this.initialElementTop + deltaMoveY}px`;
+                this.draggedElement.style.left = `${this.initialElementLeft + deltaMoveX}px`;
+
+                const draggedRect = this.draggedElement.getBoundingClientRect();
+                const draggedCenterY = draggedRect.top + draggedRect.height / 2;
+
+                const elements = Array.from(mySetsListElement.children);
+                let targetElement = null;
+
+                for (const el of elements) {
+                    if (el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item')) {
+                        const rect = el.getBoundingClientRect();
+                        if (draggedCenterY >= rect.top && draggedCenterY <= rect.bottom) {
+                            targetElement = el;
+                            break;
+                        }
+                    }
+                }
+
+                if (targetElement) {
+                    const rect = targetElement.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    if (draggedCenterY < midY) {
+                        if (this.placeholder.previousSibling !== targetElement) {
+                            targetElement.parentNode.insertBefore(this.placeholder, targetElement);
+                        }
+                    } else {
+                        if (this.placeholder.nextSibling !== targetElement) {
+                            targetElement.parentNode.insertBefore(this.placeholder, targetElement.nextSibling);
+                        }
+                    }
+                }
+            }
+
+            e.preventDefault();
+        });
+
+        setElement.addEventListener('touchend', () => {
+            console.log('Touchend:', setName, 'isDragging:', this.isDragging);
+
+            if (!this.isDragging || !this.draggedElement) {
+                this.resetDragState();
+                return;
+            }
+
+            if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
+                this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
+            }
+
+            const currentElements = Array.from(mySetsListElement.children);
+            const newOrder = currentElements
+                .filter(el => el.dataset && el.dataset.setName)
+                .map(el => el.dataset.setName);
+
+            if (newOrder.length > 0) {
+                console.log('SetsManager touchend: Calling reorderSets with newOrder:', newOrder);
+                this.reorderSets(newOrder);
+            }
+
+            this.resetDragState();
+        });
+
+        setElement.addEventListener('touchcancel', () => {
+            console.log('Touchcancel:', setName);
+            this.resetDragState();
+        });
+    }
+
+    // Метод для инициализации обработчиков событий контейнера
+    initContainerHandlers(mySetsListElement) {
+        // Обработчик drop для десктопа
+        mySetsListElement.addEventListener('drop', (e) => {
+            e.preventDefault();
+            console.log('Drop on list container');
+
+            if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
+                this.resetDragState();
+                return;
+            }
+
+            if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
+                this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
+            }
+
+            const currentElements = Array.from(mySetsListElement.children);
+            const newOrder = currentElements
+                .filter(el => el.dataset && el.dataset.setName)
+                .map(el => el.dataset.setName);
+
+            if (newOrder.length > 0) {
+                console.log('SetsManager drop: Calling reorderSets with newOrder:', newOrder);
+                this.reorderSets(newOrder);
+            }
+
+            this.resetDragState();
+        });
+
+        // Обработчик dragover
+        mySetsListElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
+                return;
+            }
+
+            const children = Array.from(mySetsListElement.children)
+                .filter(el => el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item'));
+
+            if (children.length === 0) {
+                if (!this.placeholder.parentNode || this.placeholder.parentNode !== mySetsListElement) {
+                    mySetsListElement.appendChild(this.placeholder);
+                }
+                return;
+            }
+
+            let inserted = false;
+            for (const child of children) {
+                const rect = child.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                
+                if (e.clientY < midY) {
+                    if (this.placeholder.previousSibling !== child) {
+                        mySetsListElement.insertBefore(this.placeholder, child);
+                    }
+                    inserted = true;
+                    break;
+                }
+            }
+
+            if (!inserted && children.length > 0) {
+                if (mySetsListElement.lastElementChild !== this.placeholder) {
+                    mySetsListElement.appendChild(this.placeholder);
+                }
+            }
+        });
+
+        // Обработчик dragleave
+        mySetsListElement.addEventListener('dragleave', (e) => {
+            if (this.isDragging && this.draggedElement && this.currentContainer === mySetsListElement && 
+                !mySetsListElement.contains(e.relatedTarget) && 
+                e.relatedTarget !== this.draggedElement && 
+                e.relatedTarget !== this.placeholder) {
+                this.resetDragState();
+            }
+        });
+    }
+
+    async renderSets(mySetsListElement) {
+        try {
+            console.log('Rendering sets...');
+            const sets = this.app.dataService.getAllSets();
+            console.log('Sets received:', sets);
+
+            // Очищаем список перед рендерингом
+            mySetsListElement.innerHTML = '';
 
             sets.forEach(set => {
                 const setName = set.name;
@@ -238,18 +444,21 @@ export class SetsManager {
                         <div class="mt-2 text-sm text-gray-500 max-h-[150px] overflow-y-auto">
                             ${visibleQuestions.map(q => `<div class="py-1">• ${q}</div>`).join('')}
                             ${hasHiddenQuestions ? `
-                                <div class="py-1 text-blue-500 cursor-pointer show-more-btn" data-set="${setName}">
-                                    Показать еще ${hiddenQuestions.length} вопросов...
-                                </div>
-                                <div class="hidden additional-questions">
+                                <div class="additional-questions hidden">
                                     ${hiddenQuestions.map(q => `<div class="py-1">• ${q}</div>`).join('')}
                                 </div>
+                                <button class="show-more-btn text-blue-500 hover:text-blue-600 mt-2">
+                                    Показать еще ${hiddenQuestions.length} вопросов...
+                                </button>
                             ` : ''}
                         </div>
                     </div>
                 `;
 
-                // Добавляем обработчики событий для кнопок
+                // Инициализируем обработчики событий для элемента (перетаскивание)
+                this.initDragAndDropHandlers(setElement, setName, mySetsListElement);
+
+                // Добавляем обработчики событий для кнопок управления набором
                 setElement.querySelector('.toggle-active-btn')?.addEventListener('click', () => {
                     this.toggleSetActivity(setName);
                 });
@@ -277,238 +486,12 @@ export class SetsManager {
                         }
                     });
                 }
-
-                // --- Обработчики событий для каждого setElement ---
-
-                // Обработчики для десктопной версии (Drag and Drop API)
-                setElement.addEventListener('dragstart', (e) => {
-                    console.log('Dragstart:', setName);
-                    this.draggedElement = setElement;
-                    this.currentContainer = mySetsListElement;
-                    this.isDragging = true;
-                    
-                    // Создаем плейсхолдер сразу при начале перетаскивания
-                    this.placeholder = document.createElement('div');
-                    this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
-                    this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
-                    
-                    // Вставляем плейсхолдер на место перетаскиваемого элемента
-                    this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
-                    
-                    e.dataTransfer.setData('text/plain', setName);
-                    setElement.classList.add('dragging');
-                    
-                    // Устанавливаем прозрачность для оригинального элемента
-                    setElement.style.opacity = '0.5';
-                });
-
-                setElement.addEventListener('dragend', () => {
-                    console.log('Dragend:', setName);
-                    if (this.draggedElement) {
-                        this.draggedElement.style.opacity = '';
-                    }
-                    this.resetDragState();
-                });
-
-                // Обработчик touchstart для мобильной версии
-                setElement.addEventListener('touchstart', (e) => {
-                    const dragHandle = e.target.closest('.drag-handle');
-                    if (!dragHandle) return;
-
-                    console.log('Touchstart on drag handle:', setName);
-                    this.draggedElement = setElement;
-                    this.currentContainer = mySetsListElement;
-                    this.isDragging = false;
-
-                    const touch = e.touches[0];
-                    this.initialTouchY = touch.clientY;
-                    this.initialTouchX = touch.clientX;
-                    this.initialElementTop = setElement.getBoundingClientRect().top;
-                    this.initialElementLeft = setElement.getBoundingClientRect().left;
-                });
-
-                setElement.addEventListener('touchmove', (e) => {
-                    if (!this.draggedElement || this.currentContainer !== mySetsListElement) return;
-
-                    const touch = e.touches[0];
-                    const currentY = touch.clientY;
-                    const currentX = touch.clientX;
-
-                    if (!this.isDragging) {
-                        const deltaY = Math.abs(currentY - this.initialTouchY);
-                        const deltaX = Math.abs(currentX - this.initialTouchX);
-
-                        if (deltaY > this.DRAG_THRESHOLD_PX || deltaX > this.DRAG_THRESHOLD_PX) {
-                            console.log('Starting mobile drag for:', setName);
-                            this.isDragging = true;
-
-                            this.placeholder = document.createElement('div');
-                            this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
-                            this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
-                            this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
-
-                            this.draggedElement.classList.add('dragging', 'touch-dragging');
-                            this.draggedElement.style.position = 'absolute';
-                            this.draggedElement.style.zIndex = 1000;
-                            this.draggedElement.style.width = `${this.draggedElement.offsetWidth}px`;
-                            this.draggedElement.style.top = `${this.initialElementTop}px`;
-                            this.draggedElement.style.left = `${this.initialElementLeft}px`;
-                        }
-                        return;
-                    }
-
-                    if (this.isDragging) {
-                        const deltaMoveY = currentY - this.initialTouchY;
-                        const deltaMoveX = currentX - this.initialTouchX;
-
-                        this.draggedElement.style.top = `${this.initialElementTop + deltaMoveY}px`;
-                        this.draggedElement.style.left = `${this.initialElementLeft + deltaMoveX}px`;
-
-                        const draggedRect = this.draggedElement.getBoundingClientRect();
-                        const draggedCenterY = draggedRect.top + draggedRect.height / 2;
-
-                        const elements = Array.from(mySetsListElement.children);
-                        let targetElement = null;
-
-                        for (const el of elements) {
-                            if (el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item')) {
-                                const rect = el.getBoundingClientRect();
-                                if (draggedCenterY >= rect.top && draggedCenterY <= rect.bottom) {
-                                    targetElement = el;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (targetElement) {
-                            const rect = targetElement.getBoundingClientRect();
-                            const midY = rect.top + rect.height / 2;
-                            if (draggedCenterY < midY) {
-                                if (this.placeholder.previousSibling !== targetElement) {
-                                    targetElement.parentNode.insertBefore(this.placeholder, targetElement);
-                                }
-                            } else {
-                                if (this.placeholder.nextSibling !== targetElement) {
-                                    targetElement.parentNode.insertBefore(this.placeholder, targetElement.nextSibling);
-                                }
-                            }
-                        }
-                    }
-
-                    e.preventDefault();
-                });
-
-                setElement.addEventListener('touchend', () => {
-                    console.log('Touchend:', setName, 'isDragging:', this.isDragging);
-
-                    if (!this.isDragging || !this.draggedElement) {
-                        this.resetDragState();
-                        return;
-                    }
-
-                    if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
-                        this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
-                    }
-
-                    const currentElements = Array.from(mySetsListElement.children);
-                    const newOrder = currentElements
-                        .filter(el => el.dataset && el.dataset.setName)
-                        .map(el => el.dataset.setName);
-
-                    if (newOrder.length > 0) {
-                        console.log('SetsManager touchend: Calling reorderSets with newOrder:', newOrder);
-                        this.reorderSets(newOrder);
-                    }
-
-                    this.resetDragState();
-                });
-
-                setElement.addEventListener('touchcancel', () => {
-                    console.log('Touchcancel:', setName);
-                    this.resetDragState();
-                });
-
+                
                 mySetsListElement.appendChild(setElement);
             });
 
-            // --- Обработчики событий на контейнере списка (для десктопа и отлова drop/dragleave) ---
-
-            // Обработчик drop для десктопа (на контейнере списка)
-            mySetsListElement.addEventListener('drop', (e) => {
-                e.preventDefault(); // Отменяем стандартное поведение браузера
-                console.log('Drop on list container');
-
-                if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
-                    this.resetDragState();
-                    return;
-                }
-
-                if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
-                    this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
-                }
-
-                const currentElements = Array.from(mySetsListElement.children);
-                const newOrder = currentElements
-                    .filter(el => el.dataset && el.dataset.setName)
-                    .map(el => el.dataset.setName);
-
-                if (newOrder.length > 0) {
-                    console.log('SetsManager drop: Calling reorderSets with newOrder:', newOrder);
-                    this.reorderSets(newOrder);
-                }
-
-                this.resetDragState();
-            });
-
-             // Обработчик dragover на контейнере для разрешения drop на нем, даже если нет setElement
-            mySetsListElement.addEventListener('dragover', (e) => {
-                e.preventDefault(); // Необходимо для разрешения drop на контейнере
-                e.dataTransfer.dropEffect = 'move';
-
-                if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
-                    return;
-                }
-
-                const children = Array.from(mySetsListElement.children)
-                    .filter(el => el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item'));
-
-                if (children.length === 0) {
-                    if (!this.placeholder.parentNode || this.placeholder.parentNode !== mySetsListElement) {
-                        mySetsListElement.appendChild(this.placeholder);
-                    }
-                    return;
-                }
-
-                let inserted = false;
-                for (const child of children) {
-                    const rect = child.getBoundingClientRect();
-                    const midY = rect.top + rect.height / 2;
-                    
-                    if (e.clientY < midY) {
-                        if (this.placeholder.previousSibling !== child) {
-                            mySetsListElement.insertBefore(this.placeholder, child);
-                        }
-                        inserted = true;
-                        break;
-                    }
-                }
-
-                if (!inserted && children.length > 0) {
-                    if (mySetsListElement.lastElementChild !== this.placeholder) {
-                        mySetsListElement.appendChild(this.placeholder);
-                    }
-                }
-            });
-
-             // Добавляем обработчик dragleave на контейнер для очистки, если элемент вытащили за пределы списка
-             mySetsListElement.addEventListener('dragleave', (e) => {
-                 if (this.isDragging && this.draggedElement && this.currentContainer === mySetsListElement && 
-                     !mySetsListElement.contains(e.relatedTarget) && 
-                     e.relatedTarget !== this.draggedElement && 
-                     e.relatedTarget !== this.placeholder) {
-                     this.resetDragState();
-                 }
-             });
+            // Инициализируем обработчики событий для контейнера
+            this.initContainerHandlers(mySetsListElement);
 
             console.log('renderSets finished.');
         } catch (error) {
