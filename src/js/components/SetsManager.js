@@ -172,19 +172,10 @@ export class SetsManager {
             this.draggedElement = setElement;
             this.currentContainer = mySetsListElement;
             this.isDragging = true;
-            
-            // Создаем плейсхолдер сразу при начале перетаскивания
-            this.placeholder = document.createElement('div');
-            this.placeholder.className = 'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
-            this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
-            
-            // Вставляем плейсхолдер на место перетаскиваемого элемента
-            this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
-            
+
+            e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', setName);
             setElement.classList.add('dragging');
-            
-            // Устанавливаем прозрачность для оригинального элемента
             setElement.style.opacity = '0.5';
         });
 
@@ -322,13 +313,9 @@ export class SetsManager {
             e.preventDefault();
             console.log('Drop on list container');
 
-            if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
+            if (!this.draggedElement || this.currentContainer !== mySetsListElement) {
                 this.resetDragState();
                 return;
-            }
-
-            if (this.draggedElement && this.placeholder && this.placeholder.parentNode) {
-                this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
             }
 
             const currentElements = Array.from(mySetsListElement.children);
@@ -349,47 +336,23 @@ export class SetsManager {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
 
-            if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
+            if (!this.draggedElement || this.currentContainer !== mySetsListElement) {
                 return;
             }
 
-            const children = Array.from(mySetsListElement.children)
-                .filter(el => el !== this.draggedElement && el !== this.placeholder && el.classList.contains('set-item'));
-
-            if (children.length === 0) {
-                if (!this.placeholder.parentNode || this.placeholder.parentNode !== mySetsListElement) {
-                    mySetsListElement.appendChild(this.placeholder);
-                }
-                return;
-            }
-
-            let inserted = false;
-            for (const child of children) {
-                const rect = child.getBoundingClientRect();
-                const midY = rect.top + rect.height / 2;
-                
-                if (e.clientY < midY) {
-                    if (this.placeholder.previousSibling !== child) {
-                        mySetsListElement.insertBefore(this.placeholder, child);
-                    }
-                    inserted = true;
-                    break;
-                }
-            }
-
-            if (!inserted && children.length > 0) {
-                if (mySetsListElement.lastElementChild !== this.placeholder) {
-                    mySetsListElement.appendChild(this.placeholder);
-                }
+            const afterElement = this.getDragAfterElement(mySetsListElement, e.clientY);
+            if (afterElement === null) {
+                mySetsListElement.appendChild(this.draggedElement);
+            } else {
+                mySetsListElement.insertBefore(this.draggedElement, afterElement);
             }
         });
 
         // Обработчик dragleave
         mySetsListElement.addEventListener('dragleave', (e) => {
-            if (this.isDragging && this.draggedElement && this.currentContainer === mySetsListElement && 
-                !mySetsListElement.contains(e.relatedTarget) && 
-                e.relatedTarget !== this.draggedElement && 
-                e.relatedTarget !== this.placeholder) {
+            if (this.isDragging && this.draggedElement && this.currentContainer === mySetsListElement &&
+                !mySetsListElement.contains(e.relatedTarget) &&
+                e.relatedTarget !== this.draggedElement) {
                 this.resetDragState();
             }
         });
@@ -779,6 +742,22 @@ export class SetsManager {
         questionInputs.forEach((input, index) => {
             input.placeholder = `Вопрос #${index + 1}`;
         });
+    }
+
+    // Определение элемента, после которого должен быть вставлен перетаскиваемый
+    getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.set-item:not(.dragging)')];
+        let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+
+        for (const child of draggableElements) {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                closest = { offset, element: child };
+            }
+        }
+
+        return closest.element;
     }
 
     async reorderSets(newOrder) {
