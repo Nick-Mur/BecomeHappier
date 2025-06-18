@@ -1,5 +1,7 @@
 # Бэкенд приложения "Я готов стать счастливее"
 
+Основной API реализован на Django REST Framework. В каталоге `app` находится отдельный сервис FastAPI, используемый для миграции данных.
+
 ## Установка
 
 1. Создайте виртуальное окружение:
@@ -37,7 +39,7 @@ python migrate_data.py
 ## Запуск сервера
 
 ```bash
-uvicorn app.main:app --reload
+python manage.py runserver
 ```
 
 Сервер будет доступен по адресу: http://localhost:8000

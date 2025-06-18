@@ -17,6 +17,7 @@
 - JavaScript (ES6+)
 - Chart.js для графиков
 - Font Awesome для иконок
+- Django REST Framework для серверной части (в каталоге `backend/app` также есть сервис FastAPI)
 
 ## Структура проекта
 
@@ -36,7 +37,14 @@
 ## Установка и запуск
 
 1. Клонируйте репозиторий
-2. Откройте `index.html` в браузере
+2. Установите зависимости и запустите сервер бэкенда:
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   python manage.py migrate
+   python manage.py runserver
+   ```
+3. Откройте `index.html` в браузере
 
 ## Разработка
 
