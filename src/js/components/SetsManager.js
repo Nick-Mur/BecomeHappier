@@ -150,6 +150,7 @@ export class SetsManager {
             this.draggedElement.style.width = '';
             this.draggedElement.style.top = '';
             this.draggedElement.style.left = '';
+            this.draggedElement.style.display = '';
         }
         if (this.placeholder && this.placeholder.parentNode) {
             this.placeholder.parentNode.removeChild(this.placeholder);
@@ -180,18 +181,20 @@ export class SetsManager {
             
             // Вставляем плейсхолдер на место перетаскиваемого элемента
             this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
-            
+
             e.dataTransfer.setData('text/plain', setName);
             setElement.classList.add('dragging');
-            
-            // Устанавливаем прозрачность для оригинального элемента
+
+            // Прячем исходный элемент, чтобы освободить место в списке
             setElement.style.opacity = '0.5';
+            setElement.style.display = 'none';
         });
 
         setElement.addEventListener('dragend', () => {
             console.log('Dragend:', setName);
             if (this.draggedElement) {
                 this.draggedElement.style.opacity = '';
+                this.draggedElement.style.display = '';
             }
             this.resetDragState();
         });
