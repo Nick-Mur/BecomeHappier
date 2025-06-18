@@ -173,6 +173,13 @@ export class SetsManager {
             this.currentContainer = mySetsListElement;
             this.isDragging = true;
 
+            // Создаем плейсхолдер, чтобы элемент не "проваливался" в списке
+            this.placeholder = document.createElement('div');
+            this.placeholder.className =
+                'set-item p-4 border rounded-lg mb-4 bg-gray-100 border-dashed border-2';
+            this.placeholder.style.height = `${this.draggedElement.offsetHeight}px`;
+            this.draggedElement.parentNode.insertBefore(this.placeholder, this.draggedElement);
+
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', setName);
             setElement.classList.add('dragging');
@@ -313,10 +320,13 @@ export class SetsManager {
             e.preventDefault();
             console.log('Drop on list container');
 
-            if (!this.draggedElement || this.currentContainer !== mySetsListElement) {
+            if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
                 this.resetDragState();
                 return;
             }
+
+            // Перемещаем элемент на место плейсхолдера
+            this.placeholder.parentNode.insertBefore(this.draggedElement, this.placeholder);
 
             const currentElements = Array.from(mySetsListElement.children);
             const newOrder = currentElements
@@ -336,15 +346,15 @@ export class SetsManager {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
 
-            if (!this.draggedElement || this.currentContainer !== mySetsListElement) {
+            if (!this.isDragging || !this.draggedElement || !this.placeholder || this.currentContainer !== mySetsListElement) {
                 return;
             }
 
             const afterElement = this.getDragAfterElement(mySetsListElement, e.clientY);
             if (afterElement === null) {
-                mySetsListElement.appendChild(this.draggedElement);
+                mySetsListElement.appendChild(this.placeholder);
             } else {
-                mySetsListElement.insertBefore(this.draggedElement, afterElement);
+                mySetsListElement.insertBefore(this.placeholder, afterElement);
             }
         });
 
@@ -352,7 +362,8 @@ export class SetsManager {
         mySetsListElement.addEventListener('dragleave', (e) => {
             if (this.isDragging && this.draggedElement && this.currentContainer === mySetsListElement &&
                 !mySetsListElement.contains(e.relatedTarget) &&
-                e.relatedTarget !== this.draggedElement) {
+                e.relatedTarget !== this.draggedElement &&
+                e.relatedTarget !== this.placeholder) {
                 this.resetDragState();
             }
         });
