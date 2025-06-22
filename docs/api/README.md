@@ -6,7 +6,7 @@ API построено на Django REST Framework и предоставляет 
 
 ### Базовый URL
 ```
-/api/v1/
+/api/
 ```
 
 ## Эндпоинты
@@ -15,7 +15,7 @@ API построено на Django REST Framework и предоставляет 
 
 #### Получение списка наборов
 ```
-GET /api/v1/sets/
+GET /api/sets/
 ```
 
 **Ответ:**
@@ -37,7 +37,7 @@ GET /api/v1/sets/
 
 #### Создание нового набора
 ```
-POST /api/v1/sets/
+POST /api/sets/
 ```
 
 **Тело запроса:**
@@ -54,7 +54,7 @@ POST /api/v1/sets/
 
 #### Обновление набора
 ```
-PUT /api/v1/sets/{id}/
+PUT /api/sets/{id}/
 ```
 
 **Тело запроса:**
@@ -72,12 +72,12 @@ PUT /api/v1/sets/{id}/
 
 #### Удаление набора
 ```
-DELETE /api/v1/sets/{id}/
+DELETE /api/sets/{id}/
 ```
 
 #### Переключение активности набора
 ```
-PATCH /api/v1/sets/{id}/toggle_active/
+PATCH /api/sets/{id}/toggle_active/
 ```
 
 **Тело запроса:**
