@@ -1,0 +1,101 @@
+[
+  {
+    "model": "api.questionset",
+    "pk": 1,
+    "fields": {
+      "name": "Основные",
+      "is_active": true,
+      "order": 0
+    }
+  },
+  {
+    "model": "api.questionset",
+    "pk": 2,
+    "fields": {
+      "name": "Рабочее настроение",
+      "is_active": false,
+      "order": 1
+    }
+  },
+  {
+    "model": "api.questionset",
+    "pk": 3,
+    "fields": {
+      "name": "Самочувствие",
+      "is_active": false,
+      "order": 2
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 1,
+    "fields": {
+      "text": "Как вы себя чувствуете сегодня?",
+      "set": 1
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 2,
+    "fields": {
+      "text": "Как прошёл ваш день?",
+      "set": 1
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 3,
+    "fields": {
+      "text": "Оцените ваше самочувствие?",
+      "set": 1
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 4,
+    "fields": {
+      "text": "Как вы оцениваете свою продуктивность?",
+      "set": 2
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 5,
+    "fields": {
+      "text": "Насколько комфортно вам было на работе?",
+      "set": 2
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 6,
+    "fields": {
+      "text": "Как вы оцениваете атмосферу в коллективе?",
+      "set": 2
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 7,
+    "fields": {
+      "text": "Как вы оцениваете своё физическое состояние?",
+      "set": 3
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 8,
+    "fields": {
+      "text": "Как вы оцениваете свой уровень энергии?",
+      "set": 3
+    }
+  },
+  {
+    "model": "api.question",
+    "pk": 9,
+    "fields": {
+      "text": "Были ли у вас головные боли?",
+      "set": 3
+    }
+  }
+] 

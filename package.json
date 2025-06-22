@@ -1,0 +1,10 @@
+{
+  "devDependencies": {
+    "@babel/preset-env": "^7.27.2",
+    "@playwright/test": "^1.53.1",
+    "babel-jest": "^30.0.2",
+    "eslint": "^8.57.1",
+    "jest": "^30.0.2",
+    "jest-environment-jsdom": "^30.0.2"
+  }
+}

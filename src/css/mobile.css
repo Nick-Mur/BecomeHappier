@@ -1,0 +1,60 @@
+/* Мобильные стили */
+@media (max-width: 768px) {
+    /* Общие стили для мобильных устройств */
+    .max-w-lg {
+        width: 100%;
+        padding: 0 1rem;
+    }
+
+    /* Стили для списка наборов */
+    .set-item {
+        padding: 0.75rem !important;
+    }
+
+    .set-item .flex {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .set-item .flex > div {
+        width: 100%;
+    }
+
+    /* Стили для кнопок */
+    .toggle-active-btn,
+    .edit-set-btn,
+    .delete-set-btn {
+        padding: 0.5rem !important;
+        width: 100%;
+        margin-bottom: 0.25rem;
+    }
+
+    /* Стили для модальных окон */
+    .modal {
+        width: 95% !important;
+        max-width: none !important;
+        margin: 1rem auto;
+    }
+
+    .modal-content {
+        padding: 1rem !important;
+    }
+
+    /* Стили для вопросов */
+    .question-input {
+        width: 100% !important;
+    }
+
+    /* Стили для перетаскивания на мобильных */
+    .drag-handle {
+        display: block !important;
+        margin-bottom: 0.5rem;
+    }
+
+    .touch-dragging {
+        position: fixed !important;
+        width: 90% !important;
+        left: 5% !important;
+        z-index: 1000;
+    }
+} 
