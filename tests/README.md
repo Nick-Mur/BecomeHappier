@@ -14,8 +14,9 @@
 
 ## Запуск
 - Юнит и интеграционные тесты: `npm test` или `npx jest`
-- E2E тесты: `npx playwright test`
-- Проверка линтера: `npx jest tests/lint/lint_check.test.js` и `pytest tests/lint/flake8_check.test.py`
+- E2E тесты: `npx playwright test tests/e2e/`
+- Перед запуском e2e-тестов запустите локальный сервер командой `npx http-server .`
+- Проверка линтера: `npx jest tests/lint/lint_check.test.js` и `pytest tests/lint/test_flake8_check.py`
 
 ## Требования
 - Node.js, npm

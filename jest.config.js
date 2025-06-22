@@ -5,6 +5,10 @@ module.exports = {
     '^.+\\.js$': 'babel-jest',
   },
   moduleFileExtensions: ['js', 'json'],
-  testMatch: ['**/tests/**/*.test.js'],
+  testMatch: [
+    '**/tests/unit/**/*.test.js',
+    '**/tests/integration/**/*.test.js',
+    '**/tests/lint/**/*.test.js'
+  ],
   transformIgnorePatterns: ['/node_modules/'],
 }; 

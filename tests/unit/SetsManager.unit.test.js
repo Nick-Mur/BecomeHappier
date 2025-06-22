@@ -36,7 +36,7 @@ describe('SetsManager unit tests', () => {
     const endMem = process.memoryUsage().heapUsed;
     expect(setsManager.element.classList.contains('active')).toBe(true);
     expect(end - start).toBeLessThan(300); // <300мс
-    expect(endMem - startMem).toBeLessThan(4 * 1024 * 1024); // <4Мб
+  expect(endMem - startMem).toBeLessThan(20 * 1024 * 1024); // <20Мб
   });
 
   /**

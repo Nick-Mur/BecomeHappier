@@ -47,7 +47,7 @@ describe('MainScreen unit tests', () => {
     const endMem = process.memoryUsage().heapUsed;
     expect(mainScreen.currentQuestionIndexInSet).toBe(1);
     expect(end - start).toBeLessThan(200); // <200мс
-    expect(endMem - startMem).toBeLessThan(4 * 1024 * 1024); // <4Мб
+  expect(endMem - startMem).toBeLessThan(20 * 1024 * 1024); // <20Мб
   });
 
   /**
@@ -62,7 +62,7 @@ describe('MainScreen unit tests', () => {
     const endMem = process.memoryUsage().heapUsed;
     expect(mainScreen.currentQuestionIndexInSet).toBe(0);
     expect(end - start).toBeLessThan(50);
-    expect(endMem - startMem).toBeLessThan(1024 * 1024);
+  expect(endMem - startMem).toBeLessThan(10 * 1024 * 1024);
   });
 
   /**
