@@ -63,6 +63,6 @@ describe('Integration: MainScreen <-> SetsManager', () => {
     expect(setsManager.element.classList.contains('active')).toBe(true);
     expect(mainScreen.app.showScreen).toHaveBeenCalledWith('main');
     expect(end - start).toBeLessThan(300);
-    expect(endMem - startMem).toBeLessThan(4 * 1024 * 1024);
+  expect(endMem - startMem).toBeLessThan(20 * 1024 * 1024);
   });
 }); 

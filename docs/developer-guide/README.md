@@ -83,6 +83,19 @@ python manage.py test
 
 ### Фронтенд
 
+#### Запуск тестов
+
+```bash
+npm test                # юнит и интеграционные тесты
+npx playwright test tests/e2e/  # e2e-тесты, требуется запущенный сервер
+```
+
+Перед запуском e2e-тестов запустите локальный сервер:
+
+```bash
+npx http-server .
+```
+
 1. Сборка для продакшена:
 ```bash
 npm run build

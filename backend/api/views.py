@@ -1,14 +1,13 @@
-from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
-from .models import QuestionSet, Question, Answer
-from .serializers import QuestionSetSerializer, QuestionSerializer, AnswerSerializer
-from django.shortcuts import get_object_or_404
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg
 from rest_framework.views import APIView
+from .models import QuestionSet, Question, Answer
+from .serializers import QuestionSetSerializer, AnswerSerializer
 
 # Create your views here.
+
 
 class QuestionSetViewSet(viewsets.ModelViewSet):
     queryset = QuestionSet.objects.all().order_by('order', 'id')
@@ -25,7 +24,10 @@ class QuestionSetViewSet(viewsets.ModelViewSet):
     def reorder(self, request):
         order = request.data.get('order', [])
         if not order:
-            return Response({'error': 'Order list is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Order list is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Получаем все наборы по имени для быстрого доступа
         sets_by_name = {s.name: s for s in QuestionSet.objects.all()}
@@ -38,16 +40,22 @@ class QuestionSetViewSet(viewsets.ModelViewSet):
                 set_obj.save()
             else:
                 # Если набор с таким именем не найден, возвращаем ошибку
-                return Response({'error': f'Set with name "{set_name}" not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Возвращаем обновленный список наборов, отсортированный по новому порядку
+                return Response(
+                    {'error': f'Set with name "{set_name}" not found'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        # Возвращаем обновленный список наборов,
+        # отсортированный по новому порядку
         updated_sets = QuestionSet.objects.all().order_by('order', 'id')
         serializer = self.get_serializer(updated_sets, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
 class AnswerViewSet(viewsets.ModelViewSet):
     queryset = Answer.objects.all().order_by('-date')
     serializer_class = AnswerSerializer
+
 
 class StatisticsView(APIView):
     def get(self, request):
@@ -63,6 +71,7 @@ class StatisticsView(APIView):
             'negative': negative
         })
 
+
 class MoodDataView(APIView):
     def get(self, request):
         answers = Answer.objects.all().order_by('date')
@@ -74,6 +83,7 @@ class MoodDataView(APIView):
             for answer in answers
         ]
         return Response(data)
+
 
 class ActiveQuestionsView(APIView):
     def get(self, request):
@@ -88,34 +98,38 @@ class ActiveQuestionsView(APIView):
         ]
         return Response(data)
 
+
 @api_view(['POST'])
 def reorder_sets(request):
     try:
         order = request.data.get('order', [])
         if not order:
             return Response({'error': 'Order list is required'}, status=400)
-            
+
         # Получаем все наборы
         sets = QuestionSet.objects.all()
-        
+
         # Создаем словарь для быстрого доступа к наборам по имени
         sets_dict = {set.name: set for set in sets}
-        
+
         # Проверяем, что все наборы из order существуют
         for set_name in order:
             if set_name not in sets_dict:
-                return Response({'error': f'Set {set_name} not found'}, status=404)
-        
+                return Response(
+                    {'error': f'Set {set_name} not found'},
+                    status=404,
+                )
+
         # Обновляем порядок наборов
         for index, set_name in enumerate(order):
             set_obj = sets_dict[set_name]
             set_obj.order = index
             set_obj.save()
-        
+
         # Возвращаем обновленный список наборов
         updated_sets = QuestionSet.objects.all().order_by('order')
         serializer = QuestionSetSerializer(updated_sets, many=True)
         return Response(serializer.data)
-        
+
     except Exception as e:
         return Response({'error': str(e)}, status=500)
